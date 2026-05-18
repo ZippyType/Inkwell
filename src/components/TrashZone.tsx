@@ -4,7 +4,7 @@ import { Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function TrashZone() {
-  const { draggedFileId, deleteFile } = useStudio();
+  const { draggedFileId, setDraggedFileId, deleteFile } = useStudio();
 
   if (!draggedFileId) return null;
 
@@ -16,6 +16,7 @@ export function TrashZone() {
     e.preventDefault();
     if (draggedFileId) {
       deleteFile(draggedFileId);
+      setDraggedFileId(null);
     }
   };
 

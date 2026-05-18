@@ -30,10 +30,12 @@ export function Editor() {
 
     // Check for dragged text items (snippets or sidebar assets)
     const assetUrl = e.dataTransfer.getData('asset-url');
+    const assetCaption = e.dataTransfer.getData('asset-caption');
     const textData = e.dataTransfer.getData('text/plain');
 
     if (assetUrl) {
-      insertAtDropPoint(e, `![Image](${assetUrl})`);
+      const altText = assetCaption || 'Image';
+      insertAtDropPoint(e, `![${altText}](${assetUrl})`);
     } else if (textData) {
       insertAtDropPoint(e, textData);
     }

@@ -11,25 +11,36 @@ interface StudioContextType {
   user: User | null;
   authLoading: boolean;
   files: FileSystemItem[];
-  assets: { id: string; url: string; name: string }[];
+  assets: { id: string; url: string; name: string; caption?: string }[];
   snippets: { id: string; content: string; name: string }[];
   activeFileId: string | null;
   setActiveFileId: (id: string | null) => void;
   draggedFileId: string | null;
   setDraggedFileId: (id: string | null) => void;
+  fontModeActive: boolean;
+  setFontModeActive: (active: boolean) => void;
+  selectedFontForMode: string | null;
+  setSelectedFontForMode: (font: string | null) => void;
+  selectedElementsForMode: string[];
+  setSelectedElementsForMode: (elements: string[]) => void;
+  componentFonts: Record<string, string>;
+  setComponentFonts: (fonts: Record<string, string>) => void;
   showTutorial: boolean;
   setShowTutorial: (show: boolean) => void;
   tutorialStep: number;
   setTutorialStep: (step: number) => void;
+  showGuide: boolean;
+  setShowGuide: (show: boolean) => void;
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
   addPart: () => void;
-  addChapter: (parentId: string | null) => void;
+  addChapter: (parentId: string | null, initialContent?: string, initialName?: string) => void;
   updateFileContent: (id: string, content: string) => void;
   deleteFile: (id: string) => void;
   renameFile: (id: string, name: string) => void;
-  addAsset: (url: string, name: string) => void;
+  addAsset: (url: string, name: string, caption?: string) => Promise<void>;
   addSnippet: (content: string, name: string) => void;
+  deleteAll: () => void;
   saveToFirebase: () => Promise<void>;
   login: () => Promise<void>;
   logout: () => Promise<void>;
@@ -49,7 +60,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     ];
   });
   
-  const [assets, setAssets] = useState<{ id: string; url: string; name: string }[]>(() => {
+  const [assets, setAssets] = useState<{ id: string; url: string; name: string; caption?: string }[]>(() => {
     const saved = localStorage.getItem('inkwell-assets');
     return saved ? JSON.parse(saved) : [];
   });
@@ -61,10 +72,18 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
 
   const [activeFileId, setActiveFileId] = useState<string | null>('c1');
   const [draggedFileId, setDraggedFileId] = useState<string | null>(null);
+  const [fontModeActive, setFontModeActive] = useState(false);
+  const [selectedFontForMode, setSelectedFontForMode] = useState<string | null>(null);
+  const [selectedElementsForMode, setSelectedElementsForMode] = useState<string[]>([]);
+  const [componentFonts, setComponentFonts] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('inkwell-component-fonts');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [showTutorial, setShowTutorial] = useState(() => {
     return localStorage.getItem('inkwell-tutorial-seen') !== 'true';
   });
   const [tutorialStep, setTutorialStep] = useState(1);
+  const [showGuide, setShowGuide] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return (localStorage.getItem('inkwell-theme') as 'light' | 'dark') || 'dark';
   });
@@ -81,7 +100,20 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('inkwell-files', JSON.stringify(files));
     localStorage.setItem('inkwell-assets', JSON.stringify(assets));
     localStorage.setItem('inkwell-snippets', JSON.stringify(snippets));
-  }, [files, assets, snippets]);
+    localStorage.setItem('inkwell-component-fonts', JSON.stringify(componentFonts));
+  }, [files, assets, snippets, componentFonts]);
+
+  useEffect(() => {
+    const handleGlobalDragEnd = () => {
+      setDraggedFileId(null);
+    };
+    window.addEventListener('dragend', handleGlobalDragEnd);
+    window.addEventListener('mouseup', handleGlobalDragEnd);
+    return () => {
+      window.removeEventListener('dragend', handleGlobalDragEnd);
+      window.removeEventListener('mouseup', handleGlobalDragEnd);
+    };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('inkwell-theme', theme);
@@ -100,14 +132,14 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     setFiles([...files, newPart]);
   };
 
-  const addChapter = (parentId: string | null) => {
+  const addChapter = (parentId: string | null, initialContent: string = '', initialName?: string) => {
     const nextNum = files.filter(f => f.type === 'chapter').length + 1;
     const newChapter: FileSystemItem = {
       id: uuidv4(),
       parentId,
-      name: `Chapter ${nextNum}`,
+      name: initialName || `Chapter ${nextNum}`,
       type: 'chapter',
-      content: '',
+      content: initialContent,
       order: nextNum
     };
     setFiles([...files, newChapter]);
@@ -126,13 +158,40 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   const renameFile = (id: string, name: string) => {
     setFiles(files.map(f => f.id === id ? { ...f, name } : f));
   };
+    
+  const addAsset = async (dataUrl: string, name: string, caption?: string) => {
+    let url = dataUrl;
+    const id = uuidv4();
 
-  const addAsset = (url: string, name: string) => {
-    setAssets([...assets, { id: uuidv4(), url, name }]);
+    if (user) {
+      try {
+        // Upload to Firebase Storage
+        const fileRef = ref(storage, `assets/${user.uid}/${id}-${name}`);
+        await uploadString(fileRef, dataUrl, 'data_url');
+        url = await getDownloadURL(fileRef);
+      } catch (error) {
+        console.error("Asset upload to Storage failed, falling back to local dataUrl:", error);
+      }
+    }
+
+    setAssets([...assets, { id, url, name, caption }]);
   };
 
   const addSnippet = (content: string, name: string) => {
     setSnippets([...snippets, { id: uuidv4(), content, name }]);
+  };
+
+  const deleteAll = () => {
+    const partId = uuidv4();
+    const chapterId = uuidv4();
+    setFiles([
+      { id: partId, parentId: null, name: 'Part 1', type: 'part', order: 1 },
+      { id: chapterId, parentId: partId, name: 'Chapter 1', type: 'chapter', content: '# Welcome to your book\n\nWrite something amazing...', order: 1 }
+    ]);
+    setAssets([]);
+    setSnippets([]);
+    setComponentFonts({});
+    setActiveFileId(chapterId);
   };
 
   const saveToFirebase = async () => {
@@ -189,6 +248,14 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       setActiveFileId,
       draggedFileId,
       setDraggedFileId,
+      fontModeActive,
+      setFontModeActive,
+      selectedFontForMode,
+      setSelectedFontForMode,
+      selectedElementsForMode,
+      setSelectedElementsForMode,
+      componentFonts,
+      setComponentFonts,
       showTutorial,
       setShowTutorial: (v: boolean) => {
         setShowTutorial(v);
@@ -196,6 +263,8 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       },
       tutorialStep,
       setTutorialStep,
+      showGuide,
+      setShowGuide,
       theme,
       setTheme,
       addPart,
@@ -205,6 +274,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       renameFile,
       addAsset,
       addSnippet,
+      deleteAll,
       saveToFirebase,
       login,
       logout
