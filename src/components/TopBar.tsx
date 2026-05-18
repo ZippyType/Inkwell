@@ -33,6 +33,7 @@ export function TopBar() {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [showFontMenu, setShowFontMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fontInputRef = useRef<HTMLInputElement>(null);
 
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
@@ -58,6 +59,19 @@ export function TopBar() {
     }
   };
 
+  const { addCustomFont } = useStudio();
+  const handleFontUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        addCustomFont(reader.result as string, file.name);
+        alert(`Font "${file.name}" uploaded successfully!`);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div className="h-10 bg-[#121214] border-b border-[#27272a] flex items-center px-4 select-none z-[160] relative">
       <input 
@@ -66,6 +80,13 @@ export function TopBar() {
         className="hidden" 
         accept="image/*" 
         onChange={handleFileUpload} 
+      />
+      <input 
+        type="file" 
+        ref={fontInputRef} 
+        className="hidden" 
+        accept=".ttf" 
+        onChange={handleFontUpload} 
       />
       {/* App Logo/Name */}
       <div className="flex items-center gap-2 mr-6 text-white group cursor-pointer">
@@ -157,6 +178,12 @@ export function TopBar() {
                   className="w-full text-left px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
                 >
                   <FileText className="w-3.5 h-3.5 text-indigo-400" /> Import Manuscript (.md)
+                </button>
+                <button 
+                  onClick={() => { setActiveMenu(null); fontInputRef.current?.click(); }}
+                  className="w-full text-left px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                >
+                  <Type className="w-3.5 h-3.5 text-pink-400" /> Upload Custom Font (.ttf)
                 </button>
                 <div className="h-px bg-[#27272a] my-1" />
                 <button 

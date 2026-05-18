@@ -30,7 +30,7 @@ interface Message {
 }
 
 export function ChatBot() {
-  const { activeFileId, files, updateFileContent, addSnippet } = useStudio();
+  const { activeFileId, files, updateFileContent, addSnippet, addAsset, assets } = useStudio();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
     { role: 'model', content: "Hello! I'm your Inkwell AI assistant. I can help you write, create images, and research your book. How can I help today?" }
@@ -68,11 +68,15 @@ export function ChatBot() {
         const data = await response.json();
         if (data.error) throw new Error(data.error);
 
+        // Name the asset based on the prompt or a timestamp
+        const assetName = `AI-${Date.now()}`;
+        const finalUrl = await addAsset(data.imageUrl, assetName);
+
         setMessages(prev => [...prev, { 
           role: 'model', 
-          content: "I've generated this image based on your request:", 
-          imageUrl: data.imageUrl,
-          snippet: `![Generated Image](${data.imageUrl})`
+          content: "I've generated this illustration and added it to your Assets library:", 
+          imageUrl: finalUrl,
+          snippet: `![${assetName}](${finalUrl})`
         }]);
         setLoading(false);
       } else {

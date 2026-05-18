@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { FileSystemItem } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { auth, db, storage, signInWithGoogle } from '../lib/firebase';
+import { get, set, del } from 'idb-keyval';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
@@ -12,6 +13,7 @@ interface StudioContextType {
   authLoading: boolean;
   files: FileSystemItem[];
   assets: { id: string; url: string; name: string; caption?: string }[];
+  customFonts: { id: string; name: string; url: string }[];
   snippets: { id: string; content: string; name: string }[];
   activeFileId: string | null;
   setActiveFileId: (id: string | null) => void;
@@ -38,7 +40,8 @@ interface StudioContextType {
   updateFileContent: (id: string, content: string) => void;
   deleteFile: (id: string) => void;
   renameFile: (id: string, name: string) => void;
-  addAsset: (url: string, name: string, caption?: string) => Promise<void>;
+  addAsset: (url: string, name: string, caption?: string) => Promise<string>;
+  addCustomFont: (dataUrl: string, name: string) => Promise<string>;
   addSnippet: (content: string, name: string) => void;
   deleteAll: () => void;
   saveToFirebase: () => Promise<void>;
@@ -60,10 +63,9 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     ];
   });
   
-  const [assets, setAssets] = useState<{ id: string; url: string; name: string; caption?: string }[]>(() => {
-    const saved = localStorage.getItem('inkwell-assets');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [assets, setAssets] = useState<{ id: string; url: string; name: string; caption?: string }[]>([]);
+  
+  const [customFonts, setCustomFonts] = useState<{ id: string; name: string; url: string }[]>([]);
 
   const [snippets, setSnippets] = useState<{ id: string; content: string; name: string }[]>(() => {
     const saved = localStorage.getItem('inkwell-snippets');
@@ -97,11 +99,90 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const loadLargeAssets = async () => {
+      // Load Assets Metadata
+      const savedAssets = localStorage.getItem('inkwell-assets');
+      const assetsMeta = savedAssets ? JSON.parse(savedAssets) : [];
+      
+      const hydratedAssets = await Promise.all(assetsMeta.map(async (asset: any) => {
+        if (asset.url.startsWith('https://')) return asset;
+        // Try to load from IDB
+        const data = await get(`asset-${asset.id}`);
+        if (data) {
+          const blob = await (await fetch(data)).blob();
+          return { ...asset, url: URL.createObjectURL(blob) };
+        }
+        return asset;
+      }));
+      setAssets(hydratedAssets);
+
+      // Load Fonts Metadata
+      const savedFonts = localStorage.getItem('inkwell-custom-fonts');
+      const fontsMeta = savedFonts ? JSON.parse(savedFonts) : [];
+      
+    const hydratedFonts = await Promise.all(fontsMeta.map(async (font: any) => {
+        if (font.url.startsWith('https://')) return font;
+        // Try to load from IDB
+        try {
+          const data = await get(`font-${font.id}`);
+          if (data) {
+            const blob = await (await fetch(data)).blob();
+            return { ...font, url: URL.createObjectURL(blob) };
+          }
+        } catch (e) {
+          console.error(`Failed to hydrate font ${font.name}:`, e);
+        }
+        return font;
+      }));
+      console.log("Hydrated custom fonts:", hydratedFonts.length);
+      setCustomFonts(hydratedFonts);
+    };
+
+    loadLargeAssets();
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem('inkwell-files', JSON.stringify(files));
-    localStorage.setItem('inkwell-assets', JSON.stringify(assets));
+    
+    // Save only metadata for assets and fonts to localStorage
+    const assetsMeta = assets.map(a => ({ 
+      id: a.id, 
+      name: a.name, 
+      caption: a.caption, 
+      url: a.url && a.url.startsWith('https://') ? a.url : 'local' 
+    }));
+    localStorage.setItem('inkwell-assets', JSON.stringify(assetsMeta));
+
+    const fontsMeta = customFonts.map(f => ({ 
+      id: f.id, 
+      name: f.name, 
+      url: f.url && f.url.startsWith('https://') ? f.url : 'local' 
+    }));
+    localStorage.setItem('inkwell-custom-fonts', JSON.stringify(fontsMeta));
+
     localStorage.setItem('inkwell-snippets', JSON.stringify(snippets));
     localStorage.setItem('inkwell-component-fonts', JSON.stringify(componentFonts));
-  }, [files, assets, snippets, componentFonts]);
+  }, [files, assets, customFonts, snippets, componentFonts]);
+
+  // Inject custom fonts into the document
+  useEffect(() => {
+    const styleId = 'custom-fonts-style';
+    let styleEl = document.getElementById(styleId);
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = styleId;
+      document.head.appendChild(styleEl);
+    }
+
+    const css = customFonts.map(font => `
+      @font-face {
+        font-family: "${font.name}";
+        src: url("${font.url}");
+      }
+    `).join('\n');
+
+    styleEl.textContent = css;
+  }, [customFonts]);
 
   useEffect(() => {
     const handleGlobalDragEnd = () => {
@@ -160,21 +241,71 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   };
     
   const addAsset = async (dataUrl: string, name: string, caption?: string) => {
-    let url = dataUrl;
     const id = uuidv4();
+    const sanitizedName = name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    let url = '';
+
+    // Convert dataUrl to blob immediately to use as local preview
+    const blob = await (await fetch(dataUrl)).blob();
+    const localUrl = URL.createObjectURL(blob);
+    
+    if (user) {
+      try {
+        console.log("Uploading asset to Firebase Storage...");
+        const fileRef = ref(storage, `assets/${user.uid}/${id}-${sanitizedName}`);
+        
+        const timeout = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Upload timeout')), 15000)
+        );
+        
+        await Promise.race([
+          uploadString(fileRef, dataUrl, 'data_url'),
+          timeout
+        ]);
+        
+        url = await getDownloadURL(fileRef);
+        console.log("Firebase Storage upload success:", url);
+      } catch (error) {
+        console.error("Asset upload to Storage failed or timed out:", error);
+        url = localUrl;
+        await set(`asset-${id}`, dataUrl); // Save to IDB as fallback
+      }
+    } else {
+      url = localUrl;
+      await set(`asset-${id}`, dataUrl);
+    }
+
+    setAssets(prev => [...prev, { id, url, name: sanitizedName, caption }]);
+    return url;
+  };
+
+  const addCustomFont = async (dataUrl: string, name: string) => {
+    const id = uuidv4();
+    const cleanName = name.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    let url = '';
+
+    const blob = await (await fetch(dataUrl)).blob();
+    const localUrl = URL.createObjectURL(blob);
 
     if (user) {
       try {
-        // Upload to Firebase Storage
-        const fileRef = ref(storage, `assets/${user.uid}/${id}-${name}`);
+        console.log("Uploading font to Firebase Storage...");
+        const fileRef = ref(storage, `fonts/${user.uid}/${id}-${cleanName}.ttf`);
         await uploadString(fileRef, dataUrl, 'data_url');
         url = await getDownloadURL(fileRef);
+        console.log("Firebase font upload success:", url);
       } catch (error) {
-        console.error("Asset upload to Storage failed, falling back to local dataUrl:", error);
+        console.error("Font upload failed:", error);
+        url = localUrl;
+        await set(`font-${id}`, dataUrl);
       }
+    } else {
+      url = localUrl;
+      await set(`font-${id}`, dataUrl);
     }
 
-    setAssets([...assets, { id, url, name, caption }]);
+    setCustomFonts(prev => [...prev, { id, name: cleanName, url }]);
+    return url;
   };
 
   const addSnippet = (content: string, name: string) => {
@@ -243,6 +374,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       authLoading,
       files,
       assets,
+      customFonts,
       snippets,
       activeFileId,
       setActiveFileId,
@@ -273,6 +405,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       deleteFile,
       renameFile,
       addAsset,
+      addCustomFont,
       addSnippet,
       deleteAll,
       saveToFirebase,

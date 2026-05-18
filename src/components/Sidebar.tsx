@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Plus, 
   FolderPlus, 
@@ -13,6 +13,7 @@ import {
   Trash2,
   Edit2,
   Search,
+  Type,
   Save,
   LogOut,
   LogIn,
@@ -29,6 +30,7 @@ export function Sidebar() {
   const { 
     files, 
     assets,
+    customFonts,
     snippets,
     activeFileId, 
     setActiveFileId, 
@@ -83,12 +85,15 @@ export function Sidebar() {
     if (!uploadPreview) return;
     setIsUploading(true);
     try {
+      console.log("Starting upload for:", uploadName);
       await addAsset(uploadPreview, uploadName || 'unnamed-asset', uploadCaption);
       setUploadPreview(null);
       setUploadName('');
       setUploadCaption('');
+      console.log("Upload completed");
     } catch (error) {
-      console.error("Upload failed", error);
+      console.error("Upload failed in component:", error);
+      alert("Upload failed. Check connection.");
     } finally {
       setIsUploading(false);
     }
@@ -301,8 +306,10 @@ export function Sidebar() {
           </div>
 
           <div className="mt-8">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 px-2">Assets</h2>
-            <div className="grid grid-cols-2 gap-2 px-1 relative">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 px-2">Assets & Fonts</h2>
+            
+            {/* Assets Grid */}
+            <div className="grid grid-cols-2 gap-2 px-1 relative mb-4">
               {assets.map(asset => (
                 <div 
                   key={asset.id}
@@ -314,14 +321,12 @@ export function Sidebar() {
                   }}
                   className="aspect-square bg-zinc-800 rounded overflow-hidden border border-[#27272a] cursor-grab active:cursor-grabbing group relative"
                 >
-                  {/* The image itself */}
                   <img 
                     src={asset.url} 
                     alt={asset.name} 
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover" 
                     onError={(e) => {
-                      // Fallback if image fails to load
                       (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=Error';
                     }}
                   />
@@ -340,71 +345,84 @@ export function Sidebar() {
                   onChange={handleFileSelect} 
                 />
               </label>
+            </div>
 
-              {/* Upload Preview Overlay */}
-              <AnimatePresence>
-                {uploadPreview && (
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="absolute inset-x-0 -top-40 z-20 bg-[#1e1e20] border border-zinc-700 rounded-lg p-3 shadow-2xl"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase">Prepare Asset</span>
-                      <button onClick={() => setUploadPreview(null)} className="text-zinc-500 hover:text-white">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+            {/* Fonts List */}
+            <div className="px-1 space-y-2">
+              {customFonts.map(font => (
+                <div 
+                  key={font.id}
+                  className="bg-zinc-800/50 border border-zinc-800 rounded p-2 flex items-center justify-between group"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter truncate">
+                      {font.name.split('_').join(' ')}
+                    </p>
+                    <p 
+                      className="text-sm text-zinc-200 truncate"
+                      style={{ fontFamily: font.name }}
+                    >
+                      Sample Text
+                    </p>
+                  </div>
+                  <Type className="w-3.5 h-3.5 text-zinc-600 group-hover:text-pink-400 transition-colors" />
+                </div>
+              ))}
+            </div>
+
+            {/* Upload Preview Overlay */}
+            <AnimatePresence>
+              {uploadPreview && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="absolute inset-x-0 bottom-40 z-20 bg-[#1e1e20] border border-zinc-700 rounded-lg p-3 shadow-2xl"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase">Prepare Asset</span>
+                    <button onClick={() => setUploadPreview(null)} className="text-zinc-500 hover:text-white">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  
+                  <div className="aspect-video bg-black rounded overflow-hidden mb-3">
+                    <img src={uploadPreview} className="w-full h-full object-contain" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-zinc-500 uppercase font-bold">Asset Name</label>
+                      <input 
+                        type="text" 
+                        value={uploadName}
+                        onChange={(e) => setUploadName(e.target.value)}
+                        placeholder="Image name..."
+                        className="w-full bg-zinc-900 border-none px-2 py-1.5 text-xs text-white rounded outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
                     </div>
                     
-                    <div className="aspect-video bg-black rounded overflow-hidden mb-3">
-                      <img src={uploadPreview} className="w-full h-full object-contain" />
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="space-y-1">
-                        <label className="text-[9px] text-zinc-500 uppercase font-bold">Asset Name</label>
-                        <input 
-                          type="text" 
-                          value={uploadName}
-                          onChange={(e) => setUploadName(e.target.value)}
-                          placeholder="Image name..."
-                          className="w-full bg-zinc-900 border-none px-2 py-1.5 text-xs text-white rounded outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] text-zinc-500 uppercase font-bold">Alt Text / Caption</label>
-                        <input 
-                          type="text" 
-                          value={uploadCaption}
-                          onChange={(e) => setUploadCaption(e.target.value)}
-                          placeholder="A description of the image..."
-                          className="w-full bg-zinc-900 border-none px-2 py-1.5 text-xs text-white rounded outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                      </div>
-                      
-                      <button 
-                        onClick={confirmUpload}
-                        disabled={isUploading}
-                        className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 text-white text-xs font-bold py-2 rounded mt-2 flex items-center justify-center gap-2"
-                      >
-                        {isUploading ? (
-                          <>
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            Uploading...
-                          </>
-                        ) : (
-                          <>
-                            <Check className="w-3 h-3" />
-                            Add to Assets
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                    <button 
+                      onClick={confirmUpload}
+                      disabled={isUploading}
+                      className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 text-white text-xs font-bold py-2 rounded mt-2 flex items-center justify-center gap-2"
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3 h-3" />
+                          Add to Assets
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>

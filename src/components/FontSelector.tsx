@@ -21,7 +21,7 @@ const SYSTEM_FONTS = [
 ];
 
 export function FontSelector({ onClose }: { onClose: () => void }) {
-  const { setFontModeActive, setSelectedFontForMode } = useStudio();
+  const { setFontModeActive, setSelectedFontForMode, customFonts } = useStudio();
 
   const handleSelectFont = (fontValue: string) => {
     setSelectedFontForMode(fontValue);
@@ -41,6 +41,23 @@ export function FontSelector({ onClose }: { onClose: () => void }) {
           Select Font to Apply
         </div>
         <div className="overflow-y-auto flex-1 p-1">
+          {customFonts.length > 0 && (
+            <>
+              <div className="px-2 py-1 text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Custom Fonts</div>
+              {customFonts.map(font => (
+                <button
+                  key={font.id}
+                  onClick={() => handleSelectFont(font.name)}
+                  className="w-full text-left px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white rounded transition-colors"
+                  style={{ fontFamily: font.name }}
+                >
+                  {font.name.split('_').join(' ')}
+                </button>
+              ))}
+              <div className="h-px bg-[#27272a] my-1 mx-2" />
+              <div className="px-2 py-1 text-[9px] font-bold text-zinc-600 uppercase tracking-widest">System Fonts</div>
+            </>
+          )}
           {SYSTEM_FONTS.map(font => (
             <button
               key={font.name}

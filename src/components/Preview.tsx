@@ -45,19 +45,22 @@ export function Preview() {
   };
 
   const markdownComponents: any = {
-    img: (props: any) => (
-      <div className="my-6 relative group flex flex-col items-center">
-        <img 
-          {...props} 
-          className="rounded-xl shadow-2xl max-w-full relative z-[150] bg-zinc-800" 
-          referrerPolicy="no-referrer"
-          loading="lazy"
-        />
-        {props.alt && props.alt !== 'Image' && (
-          <span className="mt-3 text-[10px] text-zinc-500 font-medium italic border-t border-zinc-800 pt-1 px-4">{props.alt}</span>
-        )}
-      </div>
-    )
+    img: (props: any) => {
+      if (!props.src) return null;
+      return (
+        <span className="my-6 relative group flex flex-col items-center block text-center">
+          <img 
+            {...props} 
+            className="rounded-xl shadow-2xl max-w-full relative z-[150] bg-zinc-800 inline-block" 
+            referrerPolicy="no-referrer"
+            loading="lazy"
+          />
+          {props.alt && props.alt !== 'Image' && (
+            <span className="mt-3 text-[10px] text-zinc-500 font-medium italic border-t border-zinc-800 pt-1 px-4 block">{props.alt}</span>
+          )}
+        </span>
+      );
+    }
   };
 
   STYLED_TAGS.forEach(tag => {
@@ -86,6 +89,16 @@ export function Preview() {
       }
       
       const Tag = tag as any;
+      
+      // Special handling for paragraphs containing images to avoid hydration/hierarchy errors
+      if (tag === 'p' && node?.children?.some((child: any) => child.tagName === 'img')) {
+        return <div 
+          {...props} 
+          style={inlineStyle}
+          onClick={fontModeActive ? (e: any) => { e.preventDefault(); e.stopPropagation(); toggleElement(tag); } : undefined}
+        />;
+      }
+
       return <Tag 
         {...props} 
         style={inlineStyle}
