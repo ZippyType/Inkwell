@@ -1,0 +1,11 @@
+{
+  "name": "Inkwell Markdown Studio",
+  "description": "A professional writing studio for building books in Markdown with AI assistance and real-time preview.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

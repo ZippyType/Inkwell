@@ -1,0 +1,43 @@
+{
+  "entities": {
+    "book": {
+      "title": "Book",
+      "description": "Represents a book being written by a user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "content": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "name", "content"]
+    },
+    "file": {
+      "title": "File",
+      "description": "A chapter or part in the book.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "parentId": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["part", "chapter"] },
+        "content": { "type": "string" },
+        "order": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "name", "type", "order"]
+    }
+  },
+  "firestore": {
+    "users/{userId}/files/{fileId}": {
+      "schema": "file",
+      "description": "User's files and chapters."
+    },
+    "users/{userId}/settings/info": {
+      "schema": "object",
+      "description": "User settings and metadata."
+    }
+  }
+}
