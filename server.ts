@@ -36,8 +36,6 @@ app.post("/api/chat", async (req, res) => {
         contents: messages,
         config: {
           systemInstruction: systemInstruction || "You are a helpful writing assistant for a book editor called Inkwell Studio. You can suggest snippets and critique content.",
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-          tools: [{ googleSearch: {} }],
         },
       });
 
@@ -51,7 +49,7 @@ app.post("/api/chat", async (req, res) => {
       res.write(`data: [DONE]\n\n`);
       res.end();
     } catch (apiError: any) {
-      if (apiError.message?.includes('429') || apiError.message?.includes('RESOURCE_EXHAUSTED')) {
+      if (apiError.message?.includes('429') || apiError.message?.includes('RESOURCE_EXHAUSTED') || apiError.message?.includes('403') || apiError.message?.includes('SCOPE_INSUFFICIENT')) {
         console.log("Falling back to OpenRouter for Chat Stream");
         
         const openRouterMessages = [];
@@ -136,7 +134,7 @@ app.post("/api/generate-image", async (req, res) => {
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.0-flash-lite',
         contents: {
           parts: [{ text: `Create a professional SVG illustration for: ${prompt}. Return ONLY the valid SVG code.` }],
         },
@@ -178,7 +176,7 @@ app.post("/api/generate-image", async (req, res) => {
 
       res.json({ imageUrl, svgCode });
     } catch (apiError: any) {
-      if (apiError.message?.includes('429') || apiError.message?.includes('RESOURCE_EXHAUSTED') || apiError.message?.includes('402')) {
+      if (apiError.message?.includes('429') || apiError.message?.includes('RESOURCE_EXHAUSTED') || apiError.message?.includes('402') || apiError.message?.includes('403') || apiError.message?.includes('SCOPE_INSUFFICIENT')) {
         console.log("Falling back to OpenRouter for SVG/Image Gen");
         
         const orResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {

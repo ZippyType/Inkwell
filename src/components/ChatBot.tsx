@@ -291,6 +291,12 @@ If you just want to append to the end, omit the lineNumber or use the last line.
                   }} />
                 </div>
               )}
+
+              {msg.role === 'model' && !msg.isGenerating && (
+                <div className="mt-2 pt-2 border-t border-zinc-800/50 text-[9px] text-zinc-500 font-medium select-none">
+                  Check important information
+                </div>
+              )}
             </div>
 
             {msg.snippet && (
