@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import * as dotenv from "dotenv";
@@ -152,11 +153,7 @@ app.post("/api/generate-image", async (req, res) => {
       let svgCode = "";
       if (svgMatch) {
          svgCode = svgMatch[0];
-         // Use UTF-8 encoding for SVG data URL (more readable than base64)
-         const encodedSvg = encodeURIComponent(svgCode)
-           .replace(/'/g, '%27')
-           .replace(/"/g, '%22');
-         imageUrl = `data:image/svg+xml;utf8,${encodedSvg}`;
+         imageUrl = `data:image/svg+xml;base64,${Buffer.from(svgCode).toString('base64')}`;
       } else {
         // Fallback to text URL check
         const urlMatch = text.match(/https?:\/\/[^\s)]+/);
@@ -186,7 +183,7 @@ app.post("/api/generate-image", async (req, res) => {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "google/gemini-2.0-flash-001",
+            model: "openrouter/free",
             messages: [
               { role: "system", content: svgSystemInstruction },
               { role: "user", content: `Create a professional SVG illustration for: ${prompt}. Return ONLY the valid SVG code.` }
@@ -204,11 +201,8 @@ app.post("/api/generate-image", async (req, res) => {
         
         if (svgMatch) {
            const svgCode = svgMatch[0];
-           const encodedSvg = encodeURIComponent(svgCode)
-             .replace(/'/g, '%27')
-             .replace(/"/g, '%22');
            res.json({ 
-             imageUrl: `data:image/svg+xml;utf8,${encodedSvg}`,
+             imageUrl: `data:image/svg+xml;base64,${Buffer.from(svgCode).toString('base64')}`,
              svgCode 
            });
         } else {

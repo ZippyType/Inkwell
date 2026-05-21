@@ -27,7 +27,8 @@ export function TopBar() {
     showGuide,
     setShowGuide,
     addAsset,
-    deleteAll 
+    deleteAll,
+    files
   } = useStudio();
 
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -73,7 +74,7 @@ export function TopBar() {
   };
 
   return (
-    <div className="h-10 bg-[#121214] border-b border-[#27272a] flex items-center px-4 select-none z-[160] relative">
+    <div className="h-10 bg-zinc-50 dark:bg-[#121214] border-b border-zinc-200 dark:border-[#27272a] flex items-center px-4 select-none z-[160] relative">
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -120,11 +121,19 @@ export function TopBar() {
 
       {/* Menu Items */}
       <div className="flex items-center gap-1">
+        <button 
+          onClick={() => { window.location.href = '/'; }}
+          className="px-3 py-1 text-xs font-medium rounded transition-colors flex items-center gap-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 mr-2 border-r border-zinc-200 dark:border-zinc-700 pr-4"
+        >
+          <BookOpen className="w-3 h-3" />
+          Library
+        </button>
+
         {/* File Menu */}
         <div className="relative">
           <button 
             onClick={() => toggleMenu('file')}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors flex items-center gap-1 ${activeMenu === 'file' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'}`}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors flex items-center gap-1 ${activeMenu === 'file' ? 'bg-zinc-200 dark:bg-zinc-800 text-white' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-zinc-800 dark:text-zinc-200'}`}
           >
             File <ChevronDown className="w-3 h-3 opacity-50" />
           </button>
@@ -135,23 +144,23 @@ export function TopBar() {
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 5 }}
-                className="absolute top-8 left-0 w-48 bg-[#18181b] border border-[#27272a] rounded-lg shadow-2xl py-1 z-[200]"
+                className="absolute top-8 left-0 w-48 bg-white dark:bg-[#18181b] border border-zinc-200 dark:border-[#27272a] rounded-lg shadow-2xl py-1 z-[200]"
               >
                 <button 
                   onClick={() => { saveToFirebase(); setActiveMenu(null); }}
-                  className="w-full text-left px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white flex items-center gap-2"
                 >
                   <Save className="w-3.5 h-3.5 text-blue-400" /> Save Project
                 </button>
                 <button 
                   onClick={() => { addPart(); setActiveMenu(null); }}
-                  className="w-full text-left px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white flex items-center gap-2"
                 >
                   <PlusCircle className="w-3.5 h-3.5 text-emerald-400" /> Add New Part
                 </button>
                 <button 
                   onClick={() => { setActiveMenu(null); fileInputRef.current?.click(); }}
-                  className="w-full text-left px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white flex items-center gap-2"
                 >
                   <ImageIcon className="w-3.5 h-3.5 text-orange-400" /> Import Image
                 </button>
@@ -175,15 +184,28 @@ export function TopBar() {
                     input.click();
                     setActiveMenu(null);
                   }}
-                  className="w-full text-left px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white flex items-center gap-2"
                 >
                   <FileText className="w-3.5 h-3.5 text-indigo-400" /> Import Manuscript (.md)
                 </button>
                 <button 
                   onClick={() => { setActiveMenu(null); fontInputRef.current?.click(); }}
-                  className="w-full text-left px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white flex items-center gap-2"
                 >
                   <Type className="w-3.5 h-3.5 text-pink-400" /> Upload Custom Font (.ttf)
+                </button>
+                <div className="h-px bg-[#27272a] my-1" />
+                <button 
+                  onClick={() => { import('../lib/exportUtils').then(m => m.exportToZip(files)); setActiveMenu(null); }}
+                  className="w-full text-left px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white flex items-center gap-2"
+                >
+                  <Save className="w-3.5 h-3.5 text-blue-400" /> Export as .ZIP
+                </button>
+                <button 
+                  onClick={() => { import('../lib/exportUtils').then(m => m.exportToEpub(files)); setActiveMenu(null); }}
+                  className="w-full text-left px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white flex items-center gap-2"
+                >
+                  <BookOpen className="w-3.5 h-3.5 text-teal-400" /> Export as .EPUB
                 </button>
                 <div className="h-px bg-[#27272a] my-1" />
                 <button 
@@ -197,14 +219,14 @@ export function TopBar() {
                       setIsConfirmingDelete(true);
                     }
                   }}
-                  className={`w-full text-left px-4 py-2 text-xs flex items-center gap-2 transition-all ${isConfirmingDelete ? 'bg-red-600 text-white font-bold animate-pulse' : 'text-zinc-300 hover:bg-red-900/40 hover:text-red-400'}`}
+                  className={`w-full text-left px-4 py-2 text-xs flex items-center gap-2 transition-all ${isConfirmingDelete ? 'bg-red-600 text-white font-bold animate-pulse' : 'text-zinc-700 dark:text-zinc-300 hover:bg-red-900/40 hover:text-red-400'}`}
                 >
                   <Trash2 className={`w-3.5 h-3.5 ${isConfirmingDelete ? 'text-white' : 'text-red-500'}`} /> 
                   {isConfirmingDelete ? 'Click again to confirm DELETE ALL' : 'Delete All'}
                 </button>
                 <button 
                   onClick={() => { logout(); setActiveMenu(null); }}
-                  className="w-full text-left px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white flex items-center gap-2"
                 >
                   <LogOut className="w-3.5 h-3.5 text-red-400" /> Logout
                 </button>
@@ -217,7 +239,7 @@ export function TopBar() {
         <div className="relative">
           <button 
             onClick={() => setShowFontMenu(!showFontMenu)}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors flex items-center gap-1 ${showFontMenu || fontModeActive ? 'bg-blue-600/20 text-blue-400' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'}`}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors flex items-center gap-1 ${showFontMenu || fontModeActive ? 'bg-blue-600/20 text-blue-400' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-zinc-800 dark:text-zinc-200'}`}
           >
             <Type className="w-3.5 h-3.5" /> Font <ChevronDown className="w-3 h-3 opacity-50" />
           </button>
@@ -231,7 +253,7 @@ export function TopBar() {
         <div className="relative">
           <button 
             onClick={() => toggleMenu('help')}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors flex items-center gap-1 ${activeMenu === 'help' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'}`}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors flex items-center gap-1 ${activeMenu === 'help' ? 'bg-zinc-200 dark:bg-zinc-800 text-white' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-zinc-800 dark:text-zinc-200'}`}
           >
             Help <ChevronDown className="w-3 h-3 opacity-50" />
           </button>
@@ -242,30 +264,30 @@ export function TopBar() {
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 5 }}
-                className="absolute top-8 left-0 w-48 bg-[#18181b] border border-[#27272a] rounded-lg shadow-2xl py-1 z-[200]"
+                className="absolute top-8 left-0 w-48 bg-white dark:bg-[#18181b] border border-zinc-200 dark:border-[#27272a] rounded-lg shadow-2xl py-1 z-[200]"
               >
                 <button 
                   onClick={handleShowTutorial}
-                  className="w-full text-left px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white flex items-center gap-2"
                 >
                   <HelpCircle className="w-3.5 h-3.5 text-yellow-500" /> Show Tutorial
                 </button>
                 <button 
                   onClick={() => { setShowGuide(!showGuide); setActiveMenu(null); }}
-                  className="w-full text-left px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white flex items-center gap-2"
                 >
                   <FileText className="w-3.5 h-3.5 text-indigo-400" /> Markdown Syntax Guide
                 </button>
                 <div className="h-px bg-[#27272a] my-1" />
                 <button 
                   onClick={() => { window.open('https://github.com', '_blank'); setActiveMenu(null); }}
-                  className="w-full text-left px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white flex items-center gap-2"
                 >
                   <HelpCircle className="w-3.5 h-3.5 text-orange-400" /> Report Issue
                 </button>
                 <button 
                   onClick={() => { alert("Inkwell Studio v1.0.0\nProfessional Markdown Book Editor"); setActiveMenu(null); }}
-                  className="w-full text-left px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white flex items-center gap-2"
                 >
                   <BookOpen className="w-3.5 h-3.5 text-emerald-400" /> About Inkwell
                 </button>

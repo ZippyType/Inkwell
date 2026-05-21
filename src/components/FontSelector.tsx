@@ -21,12 +21,18 @@ const SYSTEM_FONTS = [
 ];
 
 export function FontSelector({ onClose }: { onClose: () => void }) {
-  const { setFontModeActive, setSelectedFontForMode, customFonts } = useStudio();
+  const { setFontModeActive, setSelectedFontForMode, customFonts, defaultFont, setDefaultFont } = useStudio();
+  const [tab, setTab] = React.useState<'component' | 'global'>('component');
 
   const handleSelectFont = (fontValue: string) => {
-    setSelectedFontForMode(fontValue);
-    setFontModeActive(true);
-    onClose();
+    if (tab === 'global') {
+      setDefaultFont(fontValue);
+      onClose();
+    } else {
+      setSelectedFontForMode(fontValue);
+      setFontModeActive(true);
+      onClose();
+    }
   };
 
   return (
@@ -35,10 +41,23 @@ export function FontSelector({ onClose }: { onClose: () => void }) {
         initial={{ opacity: 0, y: -5 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -5 }}
-        className="absolute top-8 left-0 w-64 bg-[#18181b] border border-[#27272a] rounded-lg shadow-2xl z-[200] max-h-[400px] flex flex-col overflow-hidden"
+        className="absolute top-8 left-0 w-64 bg-white dark:bg-[#18181b] border border-zinc-200 dark:border-[#27272a] rounded-lg shadow-2xl z-[200] max-h-[400px] flex flex-col overflow-hidden"
       >
-        <div className="p-2 border-b border-[#27272a] text-[10px] font-bold text-zinc-500 uppercase tracking-widest backdrop-blur bg-[#18181b]/95 z-10 sticky top-0">
-          Select Font to Apply
+        <div className="p-2 border-b border-zinc-200 dark:border-[#27272a] flex items-center justify-between backdrop-blur bg-white dark:bg-[#18181b]/95 z-10 sticky top-0">
+          <div className="flex bg-zinc-100 dark:bg-zinc-900 rounded p-0.5 w-full">
+            <button 
+              onClick={() => setTab('component')} 
+              className={`flex-1 text-[10px] uppercase font-bold py-1 px-2 rounded tracking-widest ${tab === 'component' ? 'bg-zinc-200 dark:bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-300'}`}
+            >
+              Element
+            </button>
+            <button 
+              onClick={() => setTab('global')} 
+              className={`flex-1 text-[10px] uppercase font-bold py-1 px-2 rounded tracking-widest ${tab === 'global' ? 'bg-zinc-200 dark:bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-300'}`}
+            >
+              Document
+            </button>
+          </div>
         </div>
         <div className="overflow-y-auto flex-1 p-1">
           {customFonts.length > 0 && (
@@ -48,7 +67,7 @@ export function FontSelector({ onClose }: { onClose: () => void }) {
                 <button
                   key={font.id}
                   onClick={() => handleSelectFont(font.name)}
-                  className="w-full text-left px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white rounded transition-colors"
+                  className="w-full text-left px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white rounded transition-colors"
                   style={{ fontFamily: font.name }}
                 >
                   {font.name.split('_').join(' ')}
@@ -62,7 +81,7 @@ export function FontSelector({ onClose }: { onClose: () => void }) {
             <button
               key={font.name}
               onClick={() => handleSelectFont(font.value)}
-              className="w-full text-left px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white rounded transition-colors"
+              className="w-full text-left px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white rounded transition-colors"
               style={{ fontFamily: font.value }}
             >
               {font.name}

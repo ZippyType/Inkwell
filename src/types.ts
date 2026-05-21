@@ -1,3 +1,10 @@
+export interface Project {
+  id: string;
+  name: string;
+  language: 'en' | 'es' | 'fr' | 'de';
+  lastModified: number;
+}
+
 export interface FileSystemItem {
   id: string;
   parentId: string | null;
@@ -5,6 +12,20 @@ export interface FileSystemItem {
   type: 'part' | 'chapter';
   content?: string;
   order: number;
+}
+
+export interface GlossaryTerm {
+  id: string;
+  term: string;
+  definition: string;
+  relatedFileIds: string[];
+}
+
+export interface FileVersion {
+  id: string;
+  fileId: string;
+  content: string;
+  timestamp: number;
 }
 
 export interface BookState {

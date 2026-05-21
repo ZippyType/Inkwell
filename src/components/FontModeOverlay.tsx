@@ -60,10 +60,10 @@ export function FontModeOverlay() {
       >
         <div className="absolute inset-x-0 inset-y-0 h-[70%] bg-black/80 pointer-events-auto" onClick={handleCancel} />
         
-        <div className="absolute inset-x-0 bottom-0 h-[30%] bg-zinc-950/95 border-t border-zinc-800 backdrop-blur-xl pointer-events-auto flex flex-col items-center justify-center p-8 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+        <div className="absolute inset-x-0 bottom-0 h-[30%] bg-zinc-950/95 border-t border-zinc-300 dark:border-zinc-800 backdrop-blur-xl pointer-events-auto flex flex-col items-center justify-center p-8 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
           <div className="text-center mb-6 max-w-lg">
             <h2 className="text-xl font-bold text-white mb-2">Apply Font</h2>
-            <p className="text-sm text-zinc-400">
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
               Select components in the Live Preview area to change their font to <span className="text-blue-400" style={{ fontFamily: selectedFontForMode || 'inherit' }}>the selected font</span>. You can select multiple blocks.
             </p>
           </div>
@@ -71,7 +71,7 @@ export function FontModeOverlay() {
           <div className="flex gap-4 items-center">
             <button 
               onClick={handleSelectAll}
-              className="px-6 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-semibold flex items-center gap-2 transition-all hover:scale-105"
+              className="px-6 py-4 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:bg-zinc-700 text-white rounded-xl font-semibold flex items-center gap-2 transition-all hover:scale-105"
             >
               <Columns className="w-5 h-5" />
               {selectedElementsForMode.length === STYLED_TAGS.length ? 'Deselect All' : 'Select All'}
@@ -91,7 +91,7 @@ export function FontModeOverlay() {
             
             <button 
               onClick={handleCancel}
-              className="px-6 py-4 bg-transparent hover:bg-zinc-900 border-2 border-zinc-700 text-zinc-300 rounded-xl font-semibold transition-all hover:scale-105"
+              className="px-6 py-4 bg-transparent hover:bg-zinc-100 dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl font-semibold transition-all hover:scale-105"
             >
               Cancel
             </button>

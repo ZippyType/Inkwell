@@ -53,24 +53,24 @@ export function Tutorial() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="fixed bottom-6 right-[400px] w-80 bg-zinc-900 border border-yellow-500/50 shadow-2xl shadow-yellow-500/10 rounded-lg overflow-hidden z-[100]"
+        className="fixed bottom-6 right-[400px] w-80 bg-zinc-100 dark:bg-zinc-900 border border-yellow-500/50 shadow-2xl shadow-yellow-500/10 rounded-lg overflow-hidden z-[100]"
       >
         <div className="bg-yellow-500/10 p-4 border-b border-yellow-500/20 flex justify-between items-center">
           <h3 className="font-bold text-yellow-500">{currentStep.title}</h3>
-          <button onClick={() => setShowTutorial(false)} className="text-zinc-400 hover:text-white transition-colors">
+          <button onClick={() => setShowTutorial(false)} className="text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-4 text-sm text-zinc-300 leading-relaxed min-h-[80px]">
+        <div className="p-4 text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed min-h-[80px]">
           {currentStep.content}
         </div>
-        <div className="p-3 bg-zinc-950 flex justify-between items-center border-t border-zinc-800">
+        <div className="p-3 bg-zinc-950 flex justify-between items-center border-t border-zinc-300 dark:border-zinc-800">
           <span className="text-xs text-zinc-500">{tutorialStep} of {STEPS.length}</span>
           <div className="flex gap-2">
             {tutorialStep > 1 && (
               <button 
                 onClick={handlePrev}
-                className="px-3 py-1.5 text-xs font-semibold text-zinc-400 hover:text-white transition-colors flex items-center"
+                className="px-3 py-1.5 text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors flex items-center"
               >
                 <ChevronLeft className="w-3 h-3 mr-1" /> Back
               </button>

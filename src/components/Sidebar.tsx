@@ -25,9 +25,12 @@ import {
 import { useStudio } from '../context/StudioContext';
 import { cn } from '../lib/utils';
 import { compressImage } from '../lib/imageUtils';
+import { t } from '../lib/i18n';
 
 export function Sidebar() {
   const { 
+    language,
+    projectId,
     files, 
     assets,
     customFonts,
@@ -47,12 +50,17 @@ export function Sidebar() {
     authLoading,
     login,
     logout,
-    saveToFirebase
+    saveToFirebase,
+    glossaryTerms,
+    addGlossaryTerm,
+    deleteGlossaryTerm
   } = useStudio();
   
   const [expandedParts, setExpandedParts] = useState<Record<string, boolean>>({});
+  const [manuscriptSearch, setManuscriptSearch] = useState('');
   const [snippetSearch, setSnippetSearch] = useState('');
   const [showSnippetSearch, setShowSnippetSearch] = useState(false);
+  const [isTocExpanded, setIsTocExpanded] = useState(false);
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
   const [uploadName, setUploadName] = useState('');
   const [uploadCaption, setUploadCaption] = useState('');
@@ -105,9 +113,36 @@ export function Sidebar() {
 
   const parts = files.filter(f => f.type === 'part').sort((a, b) => a.order - b.order);
 
+  const getFilteredPartsList = () => {
+    if (!manuscriptSearch) return parts;
+    const lowerSearch = manuscriptSearch.toLowerCase();
+    
+    return parts.filter(part => {
+      if (part.name.toLowerCase().includes(lowerSearch)) return true;
+      const chaptersInPart = files.filter(f => f.parentId === part.id && f.type === 'chapter' && f.name !== 'Table Of Contents');
+      return chaptersInPart.some(c => c.name.toLowerCase().includes(lowerSearch));
+    });
+  };
+
+  const getFilteredChaptersInPart = (partId: string) => {
+    const chapters = files
+      .filter(f => f.parentId === partId && f.type === 'chapter' && f.name !== 'Table Of Contents')
+      .sort((a, b) => a.order - b.order);
+      
+    if (!manuscriptSearch) return chapters;
+    
+    const lowerSearch = manuscriptSearch.toLowerCase();
+    const partMatch = parts.find(p => p.id === partId)?.name.toLowerCase().includes(lowerSearch);
+    
+    if (partMatch) return chapters;
+    return chapters.filter(c => c.name.toLowerCase().includes(lowerSearch));
+  };
+
+  const filteredParts = getFilteredPartsList();
+
   return (
     <>
-      <div className="p-4 border-b border-[#27272a] flex items-center gap-2">
+      <div className="p-4 border-b border-zinc-200 dark:border-[#27272a] flex items-center gap-2">
         <svg 
           xmlns="http://www.w3.org/2000/svg" 
           viewBox="0 0 2048 2048" 
@@ -132,25 +167,79 @@ export function Sidebar() {
           <path d="M 1482.95 1329.83 L 1531.95 1329.89 L 1532 1606.88 C 1515.85 1607.1 1499.3 1606.92 1483.11 1606.93 L 1482.95 1329.83 z" fill="currentColor"></path>
           <path d="M 756.373 1094.98 C 768.39 1106.62 779.986 1108.92 795.797 1109.16 C 792.143 1129.44 786.767 1149.56 782.197 1169.96 C 773.324 1209.55 766.744 1256.32 713.936 1253.94 C 698.333 1253.24 688.405 1249.19 676.353 1238.95 C 673.37 1235.94 670.655 1232.68 668.239 1229.19 C 655.863 1211.47 658.045 1193.36 661.58 1173.69 C 675.254 1176.25 689.447 1178.01 703.243 1179.77 C 701.67 1187.19 699.644 1195.33 702.618 1202.71 C 707.477 1214.72 724.691 1213.48 728.959 1201.93 C 733.632 1189.29 736.379 1174.27 739.433 1161.11 C 744.405 1138.9 750.054 1116.84 756.373 1094.98 z" fill="rgb(110,92,216)"></path>
         </svg>
-        <span className="font-semibold tracking-tight text-zinc-100">Inkwell</span>
+        <span className="font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Inkwell</span>
       </div>
       {/* File Tree Area */}
       <div className="flex-1 overflow-y-auto p-3">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Manuscript</h2>
+        <div className="mb-4">
+          <div 
+            className="flex items-center gap-2 py-1 text-sm cursor-pointer group hover:text-zinc-900 dark:text-zinc-100 text-zinc-700 dark:text-zinc-300 transition-colors"
+            onClick={() => setIsTocExpanded(!isTocExpanded)}
+          >
+            <motion.div animate={{ rotate: isTocExpanded ? 90 : 0 }} transition={{ duration: 0.2 }}>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </motion.div>
+            <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-zinc-500 group-hover:text-zinc-600 dark:text-zinc-400">{t(language, 'tableOfContents')}</span>
+          </div>
+          <AnimatePresence>
+            {isTocExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="ml-1 pl-3 border-l border-zinc-300 dark:border-zinc-800 space-y-0.5 overflow-hidden mt-1"
+              >
+                {parts.map(part => (
+                  <div key={'toc-'+part.id} className="mb-2 text-xs">
+                     <span className="font-bold text-zinc-600 dark:text-zinc-400">{part.name}</span>
+                     <div className="ml-2 border-l border-zinc-300 dark:border-zinc-800 pl-2 mt-1 space-y-1">
+                        {files.filter(f => f.parentId === part.id && f.type === 'chapter' && f.name !== 'Table Of Contents').sort((a,b)=>a.order-b.order).map(c => (
+                           <div key={'toc-'+c.id} className="text-zinc-500 truncate" title={c.name}>{c.name}</div>
+                        ))}
+                     </div>
+                  </div>
+                ))}
+                {files.filter(f => !f.parentId && f.type === 'chapter' && f.name !== 'Table Of Contents').sort((a,b)=>a.order-b.order).length > 0 && (
+                  <div className="mb-2 text-xs">
+                    <span className="font-bold text-zinc-600 dark:text-zinc-400">Other Chapters</span>
+                    <div className="ml-2 border-l border-zinc-300 dark:border-zinc-800 pl-2 mt-1 space-y-1">
+                      {files.filter(f => !f.parentId && f.type === 'chapter' && f.name !== 'Table Of Contents').sort((a,b)=>a.order-b.order).map(c => (
+                        <div key={'toc-'+c.id} className="text-zinc-500 truncate" title={c.name}>{c.name}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="flex items-center justify-between mb-2 mt-6">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{t(language, 'manuscript')}</h2>
           {user && (
             <button 
               onClick={saveToFirebase}
-              className="p-1 hover:bg-zinc-800 rounded transition-colors text-indigo-400"
+              className="p-1 hover:bg-zinc-200 dark:bg-zinc-800 rounded transition-colors text-indigo-400"
               title="Save to Cloud"
             >
               <Save className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
+        
+        <div className="relative mb-4">
+          <Search className="w-3.5 h-3.5 absolute left-2 top-1.5 text-zinc-500" />
+          <input 
+            type="text" 
+            placeholder={t(language, 'searchChapters')}
+            value={manuscriptSearch}
+            onChange={(e) => setManuscriptSearch(e.target.value)}
+            className="w-full bg-white dark:bg-[#18181b] border border-zinc-200 dark:border-[#27272a] rounded pb-1 pt-1.5 pl-7 pr-2 text-xs text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-zinc-300 dark:border-zinc-700"
+          />
+        </div>
 
         <div className="space-y-1">
-          {parts.map(part => (
+          {filteredParts.map(part => (
             <div key={part.id} className="mb-4">
               <div 
                 draggable
@@ -161,12 +250,12 @@ export function Sidebar() {
                 onDragEnd={() => setDraggedFileId(null)}
                 className={cn(
                   "flex items-center gap-2 py-1 text-sm cursor-pointer group",
-                  activeFileId === part.id ? "text-indigo-400 font-medium" : "text-zinc-300 hover:text-zinc-100"
+                  activeFileId === part.id ? "text-indigo-400 font-medium" : "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:text-zinc-100"
                 )}
                 onClick={() => togglePart(part.id)}
               >
                 <motion.div
-                  animate={{ rotate: expandedParts[part.id] ? 90 : 0 }}
+                  animate={{ rotate: expandedParts[part.id] || manuscriptSearch ? 90 : 0 }}
                   transition={{ duration: 0.2 }}
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -175,17 +264,14 @@ export function Sidebar() {
               </div>
 
               <AnimatePresence>
-                {expandedParts[part.id] && (
+                {(expandedParts[part.id] || manuscriptSearch) && (
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="ml-1 pl-3 border-l border-zinc-800 space-y-0.5 overflow-hidden mt-1"
+                    className="ml-1 pl-3 border-l border-zinc-300 dark:border-zinc-800 space-y-0.5 overflow-hidden mt-1"
                   >
-                    {files
-                      .filter(f => f.parentId === part.id && f.type === 'chapter')
-                      .sort((a, b) => a.order - b.order)
-                      .map(chapter => (
+                    {getFilteredChaptersInPart(part.id).map(chapter => (
                         <div
                           key={chapter.id}
                           draggable
@@ -198,7 +284,7 @@ export function Sidebar() {
                             "flex items-center gap-2 pl-3 py-1 cursor-pointer group text-sm",
                             activeFileId === chapter.id 
                               ? "text-indigo-400 bg-indigo-500/10 border-r-2 border-indigo-500" 
-                              : "text-zinc-500 hover:text-zinc-300"
+                              : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-300"
                           )}
                           onClick={() => setActiveFileId(chapter.id)}
                         >
@@ -207,7 +293,7 @@ export function Sidebar() {
                       ))}
                     <button
                       onClick={() => addChapter(part.id)}
-                      className="flex items-center gap-2 pl-3 py-1 w-full text-left text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                      className="flex items-center gap-2 pl-3 py-1 w-full text-left text-xs text-zinc-600 hover:text-zinc-600 dark:text-zinc-400 transition-colors"
                     >
                       <Plus className="w-3 h-3" />
                       Add Chapter
@@ -221,6 +307,7 @@ export function Sidebar() {
           {/* Root Level Chapters */}
           {files
             .filter(f => !f.parentId && f.type === 'chapter')
+            .filter(f => !manuscriptSearch || f.name.toLowerCase().includes(manuscriptSearch.toLowerCase()))
             .map(chapter => (
               <div
                 key={chapter.id}
@@ -234,7 +321,7 @@ export function Sidebar() {
                   "flex items-center gap-2 px-2 py-1 cursor-pointer group text-sm rounded",
                   activeFileId === chapter.id 
                     ? "text-indigo-400 bg-indigo-500/10 border-r-2 border-indigo-500" 
-                    : "text-zinc-500 hover:text-zinc-300"
+                    : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-300"
                 )}
                 onClick={() => setActiveFileId(chapter.id)}
               >
@@ -249,9 +336,9 @@ export function Sidebar() {
               <div className="flex items-center gap-1">
                 <button 
                   onClick={() => setShowSnippetSearch(!showSnippetSearch)}
-                  className="p-1 hover:bg-zinc-800 rounded transition-colors"
+                  className="p-1 hover:bg-zinc-200 dark:bg-zinc-800 rounded transition-colors"
                 >
-                  <Search className="w-3.5 h-3.5 text-zinc-400" />
+                  <Search className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
                 </button>
               </div>
             </div>
@@ -269,7 +356,7 @@ export function Sidebar() {
                     placeholder="Filter snippets..."
                     value={snippetSearch}
                     onChange={(e) => setSnippetSearch(e.target.value)}
-                    className="w-full text-xs bg-zinc-800 border-none rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-indigo-500 text-zinc-200"
+                    className="w-full text-xs bg-zinc-200 dark:bg-zinc-800 border-none rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-indigo-500 text-zinc-800 dark:text-zinc-200"
                     autoFocus
                   />
                 </motion.div>
@@ -287,9 +374,9 @@ export function Sidebar() {
                       key={snippet.id} 
                       draggable
                       onDragStart={(e) => e.dataTransfer.setData('text/plain', snippet.content)}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded cursor-grab active:cursor-grabbing hover:bg-zinc-800 transition-colors group"
+                      className="flex items-center gap-2 px-2 py-1.5 rounded cursor-grab active:cursor-grabbing hover:bg-zinc-200 dark:bg-zinc-800 transition-colors group"
                     >
-                      <span className="text-xs text-zinc-400 truncate flex-1">{snippet.name}</span>
+                      <span className="text-xs text-zinc-600 dark:text-zinc-400 truncate flex-1">{snippet.name}</span>
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
@@ -305,8 +392,60 @@ export function Sidebar() {
             </div>
           </div>
 
+          {/* Glossary Section */}
+          <div className="mt-8 mb-4 px-2">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{t(language, 'glossary')}</h2>
+              <button 
+                onClick={() => {
+                  const term = prompt(t(language, 'enterTerm'));
+                  if (term) {
+                    const def = prompt(t(language, 'enterDef', { term }));
+                    if (def) {
+                      addGlossaryTerm(term, def);
+                    }
+                  }
+                }}
+                className="p-1 hover:bg-zinc-200 dark:bg-zinc-800 rounded transition-colors"
+                title="Add New Term"
+              >
+                <Plus className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
+              </button>
+            </div>
+
+            <div className="space-y-1 mt-2">
+              {glossaryTerms.length === 0 ? (
+                <p className="text-[10px] text-zinc-500 italic pl-1">{t(language, 'noTerms')}</p>
+              ) : (
+                glossaryTerms.map(term => (
+                  <div 
+                    key={term.id} 
+                    draggable
+                    onDragStart={(e) => e.dataTransfer.setData('text/plain', term.term)}
+                    className="flex flex-col px-2 py-1.5 rounded cursor-grab active:cursor-grabbing hover:bg-zinc-200 dark:bg-zinc-800 transition-colors group relative"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-zinc-800 dark:text-zinc-200 font-bold truncate flex-1">{term.term}</span>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteGlossaryTerm(term.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-opacity text-zinc-500"
+                        title="Delete term"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-zinc-600 dark:text-zinc-400 leading-tight mt-1">{term.definition}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
           <div className="mt-8">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 px-2">Assets & Fonts</h2>
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 px-2">{t(language, 'assetsAndFonts')}</h2>
             
             {/* Assets Grid */}
             <div className="grid grid-cols-2 gap-2 px-1 relative mb-4">
@@ -319,7 +458,7 @@ export function Sidebar() {
                     e.dataTransfer.setData('asset-caption', asset.caption || '');
                     e.dataTransfer.setData('text/plain', `![${asset.caption || asset.name}](${asset.url})`);
                   }}
-                  className="aspect-square bg-zinc-800 rounded overflow-hidden border border-[#27272a] cursor-grab active:cursor-grabbing group relative"
+                  className="aspect-square bg-zinc-200 dark:bg-zinc-800 rounded overflow-hidden border border-zinc-200 dark:border-[#27272a] cursor-grab active:cursor-grabbing group relative"
                 >
                   <img 
                     src={asset.url} 
@@ -336,7 +475,7 @@ export function Sidebar() {
                 </div>
               ))}
               
-              <label className="aspect-square rounded border border-dashed border-zinc-700 flex flex-col items-center justify-center cursor-pointer hover:bg-zinc-800 transition-colors">
+              <label className="aspect-square rounded border border-dashed border-zinc-300 dark:border-zinc-700 flex flex-col items-center justify-center cursor-pointer hover:bg-zinc-200 dark:bg-zinc-800 transition-colors">
                 <Plus className="w-4 h-4 text-zinc-500" />
                 <input 
                   type="file" 
@@ -352,14 +491,14 @@ export function Sidebar() {
               {customFonts.map(font => (
                 <div 
                   key={font.id}
-                  className="bg-zinc-800/50 border border-zinc-800 rounded p-2 flex items-center justify-between group"
+                  className="bg-zinc-200 dark:bg-zinc-800/50 border border-zinc-300 dark:border-zinc-800 rounded p-2 flex items-center justify-between group"
                 >
                   <div className="min-w-0">
                     <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter truncate">
                       {font.name.split('_').join(' ')}
                     </p>
                     <p 
-                      className="text-sm text-zinc-200 truncate"
+                      className="text-sm text-zinc-800 dark:text-zinc-200 truncate"
                       style={{ fontFamily: font.name }}
                     >
                       Sample Text
@@ -377,11 +516,11 @@ export function Sidebar() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="absolute inset-x-0 bottom-40 z-20 bg-[#1e1e20] border border-zinc-700 rounded-lg p-3 shadow-2xl"
+                  className="absolute inset-x-0 bottom-40 z-20 bg-white dark:bg-[#1e1e20] border border-zinc-300 dark:border-zinc-700 rounded-lg p-3 shadow-2xl"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold text-zinc-400 uppercase">Prepare Asset</span>
-                    <button onClick={() => setUploadPreview(null)} className="text-zinc-500 hover:text-white">
+                    <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase">Prepare Asset</span>
+                    <button onClick={() => setUploadPreview(null)} className="text-zinc-500 hover:text-black dark:hover:text-white">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -398,14 +537,14 @@ export function Sidebar() {
                         value={uploadName}
                         onChange={(e) => setUploadName(e.target.value)}
                         placeholder="Image name..."
-                        className="w-full bg-zinc-900 border-none px-2 py-1.5 text-xs text-white rounded outline-none focus:ring-1 focus:ring-indigo-500"
+                        className="w-full bg-zinc-100 dark:bg-zinc-900 border-none px-2 py-1.5 text-xs text-white rounded outline-none focus:ring-1 focus:ring-indigo-500"
                       />
                     </div>
                     
                     <button 
                       onClick={confirmUpload}
                       disabled={isUploading}
-                      className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 text-white text-xs font-bold py-2 rounded mt-2 flex items-center justify-center gap-2"
+                      className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-300 dark:bg-zinc-700 text-white text-xs font-bold py-2 rounded mt-2 flex items-center justify-center gap-2"
                     >
                       {isUploading ? (
                         <>
@@ -428,41 +567,48 @@ export function Sidebar() {
       </div>
 
       {/* Action Buttons & User Area */}
-      <div className="h-[153px] p-3 border-t border-[#27272a] bg-[#1a1a1c] flex flex-col gap-2 shrink-0">
+      <div className="h-[153px] p-3 border-t border-zinc-200 dark:border-[#27272a] bg-zinc-100 dark:bg-[#1a1a1c] flex flex-col gap-2 shrink-0">
         <div className="flex gap-2 mb-2">
           <button
             onClick={() => addChapter(null)}
-            className="flex-1 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded transition-colors"
+            className="flex-1 py-1.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-medium rounded transition-colors"
           >
             + New Chapter
           </button>
           <button
             onClick={addPart}
-            className="flex-1 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded transition-colors"
+            className="flex-1 py-1.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-medium rounded transition-colors"
           >
             + New Part
           </button>
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-zinc-800/50 mt-auto">
+        <div className="flex items-center justify-between pt-2 border-t border-zinc-300 dark:border-zinc-800/50 mt-auto">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-indigo-900/50 border border-indigo-500/30 flex items-center justify-center text-indigo-200 overflow-hidden">
               {user?.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover" /> : <User className="w-4 h-4" />}
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-medium text-zinc-200 truncate max-w-[80px]">{user ? user.displayName : 'Guest'}</span>
+              <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate max-w-[80px]">{user ? user.displayName : 'Guest'}</span>
               <span className="text-[10px] text-zinc-500">{user ? 'PRO Plan' : 'Local'}</span>
             </div>
           </div>
           
           <div className="flex gap-1">
-            <button className="p-1.5 hover:bg-zinc-700 rounded transition-colors text-zinc-400">
+            <button 
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="p-1.5 hover:bg-zinc-300 dark:bg-zinc-700 rounded transition-colors text-zinc-600 dark:text-zinc-400"
+              title="Toggle Theme"
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+            <button className="p-1.5 hover:bg-zinc-300 dark:bg-zinc-700 rounded transition-colors text-zinc-600 dark:text-zinc-400">
               <Settings className="w-4 h-4" />
             </button>
             {user ? (
               <button 
                 onClick={logout}
-                className="p-1.5 hover:bg-zinc-700 rounded transition-colors text-red-400"
+                className="p-1.5 hover:bg-zinc-300 dark:bg-zinc-700 rounded transition-colors text-red-400"
                 title="Logout"
               >
                 <LogOut className="w-4 h-4" />
@@ -470,7 +616,7 @@ export function Sidebar() {
             ) : (
               <button 
                 onClick={login}
-                className="p-1.5 hover:bg-zinc-700 rounded transition-colors text-indigo-400"
+                className="p-1.5 hover:bg-zinc-300 dark:bg-zinc-700 rounded transition-colors text-indigo-400"
                 title="Login"
               >
                 <LogIn className="w-4 h-4" />

@@ -1,25 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+// Helper at top
 import { 
   Sparkles, 
   ChevronRight, 
-  FileText, 
   FolderPlus, 
   Search, 
   Image as ImageIcon,
-  CheckCircle2
+  CheckCircle2,
+  Type
 } from 'lucide-react';
+import { useStudio } from '../context/StudioContext';
 
 export function OOBE() {
   const [step, setStep] = useState(0);
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    const hasSeen = localStorage.getItem('inkwell-oobe-seen');
-    if (!hasSeen) {
-      setShow(true);
-    }
-  }, []);
+  const { showOobe, setShowOobe, defaultFont, setDefaultFont } = useStudio();
 
   const steps = [
     {
@@ -41,22 +36,31 @@ export function OOBE() {
       title: "Visual Asset Pipeline",
       description: "Drag images from your local machine or generate them with AI. Drag assets from the sidebar to the preview to transform and insert them.",
       icon: <ImageIcon className="w-12 h-12 text-orange-500" />
+    },
+    {
+      title: "Choose Document Font",
+      description: "Select a default typography for your document. You can change this later in the Font menu.",
+      icon: <Type className="w-12 h-12 text-pink-500" />,
+      options: [
+        { name: 'Default Sans', value: 'ui-sans-serif, system-ui, sans-serif' },
+        { name: 'Default Serif', value: 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif' },
+        { name: 'Default Mono', value: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' },
+      ]
     }
   ];
 
   const handleFinish = () => {
-    localStorage.setItem('inkwell-oobe-seen', 'true');
-    setShow(false);
+    setShowOobe(false);
   };
 
-  if (!show) return null;
+  if (!showOobe) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-900/40 backdrop-blur-md p-6">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-zinc-950/80 backdrop-blur-md p-6">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-zinc-200 dark:border-zinc-800"
+        className="bg-zinc-100 dark:bg-zinc-900 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-zinc-300 dark:border-zinc-800"
       >
         <div className="p-12 flex flex-col items-center text-center">
           <motion.div
@@ -74,12 +78,32 @@ export function OOBE() {
               initial={{ x: 20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -20, opacity: 0 }}
-              className="space-y-4"
+              className="space-y-4 w-full"
             >
-              <h2 className="text-3xl font-bold tracking-tight">{steps[step].title}</h2>
-              <p className="text-zinc-500 dark:text-zinc-400 leading-relaxed">
+              <h2 className="text-3xl font-bold tracking-tight text-white">{steps[step].title}</h2>
+              <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed mb-6">
                 {steps[step].description}
               </p>
+              
+              {steps[step].options && (
+                <div className="flex flex-col gap-3 mt-4 w-full text-left">
+                  {steps[step].options.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setDefaultFont(opt.value)}
+                      className={cn(
+                        "p-4 rounded-xl border-2 transition-all text-left",
+                        defaultFont === opt.value 
+                          ? "border-blue-500 bg-blue-500/10 text-white" 
+                          : "border-zinc-300 dark:border-zinc-800 hover:border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
+                      )}
+                      style={{ fontFamily: opt.value }}
+                    >
+                      {opt.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </motion.div>
           </AnimatePresence>
 
@@ -99,7 +123,7 @@ export function OOBE() {
             {step < steps.length - 1 ? (
               <button
                 onClick={() => setStep(step + 1)}
-                className="w-full py-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-2xl font-bold flex items-center justify-center gap-2 group hover:bg-black dark:hover:bg-zinc-100 transition-all"
+                className="w-full py-4 bg-white text-zinc-900 rounded-2xl font-bold flex items-center justify-center gap-2 group hover:bg-zinc-100 transition-all"
               >
                 Continue
                 <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />

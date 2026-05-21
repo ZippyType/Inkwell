@@ -18,6 +18,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useStudio } from '../context/StudioContext';
 import { cn } from '../lib/utils';
+import { t } from '../lib/i18n';
 
 interface Message {
   role: 'user' | 'model';
@@ -26,11 +27,13 @@ interface Message {
   snippet?: string;
   snippetLineNumber?: number;
   imageUrl?: string;
+  svgCode?: string;
+  glossaryTerms?: { term: string; definition: string }[];
   isGenerating?: boolean;
 }
 
 export function ChatBot() {
-  const { activeFileId, files, updateFileContent, addSnippet, addAsset, assets } = useStudio();
+  const { language, activeFileId, files, updateFileContent, addSnippet, addAsset, assets, addGlossaryTerm } = useStudio();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
     { role: 'model', content: "Hello! I'm your Inkwell AI assistant. I can help you write, create images, and research your book. How can I help today?" }
@@ -76,6 +79,7 @@ export function ChatBot() {
           role: 'model', 
           content: "I've generated this illustration and added it to your Assets library:", 
           imageUrl: finalUrl,
+          svgCode: data.svgCode,
           snippet: `![${assetName}](${finalUrl})`
         }]);
         setLoading(false);
@@ -106,7 +110,15 @@ If you are suggesting a snippet to be inserted or replaced in the document, you 
   "lineNumber": 5
 }
 \`\`\`
-If you just want to append to the end, omit the lineNumber or use the last line. Be creative but professional.`
+If you suggest Glossary terms, add them to the JSON block:
+\`\`\`json
+{
+  "glossary": [
+    {"term": "Magic", "definition": "Energy"}
+  ]
+}
+\`\`\`
+If generating a chapter outline for the user to append, output a markdown outline snippet. Be creative but professional.`
           }),
         });
 
@@ -170,10 +182,11 @@ If you just want to append to the end, omit the lineNumber or use the last line.
           }
         }
 
-        // Post-process the final accumulated text to extract the snippet
+        // Post-process the final accumulated text to extract the snippet and glossary
         let snippet = "";
         let lineNumber: number | undefined;
         let finalContent = fullText;
+        let newGlossaryTerms: { term: string; definition: string }[] | undefined;
         
         const jsonMatch = fullText.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
         if (jsonMatch) {
@@ -181,13 +194,14 @@ If you just want to append to the end, omit the lineNumber or use the last line.
             const parsed = JSON.parse(jsonMatch[1]);
             snippet = parsed.snippet || "";
             lineNumber = parsed.lineNumber;
-            if (snippet) {
+            newGlossaryTerms = parsed.glossary;
+            if (snippet || newGlossaryTerms) {
               finalContent = fullText.replace(jsonMatch[0], "").trim();
             }
           } catch (e) {}
         }
 
-        if (!snippet) {
+        if (!snippet && !newGlossaryTerms) {
           const snippetMatch = fullText.match(/```[\s\S]*?\n([\s\S]*?)```/);
           if (snippetMatch) {
             snippet = snippetMatch[1];
@@ -207,6 +221,7 @@ If you just want to append to the end, omit the lineNumber or use the last line.
             thoughts: fullThoughts,
             snippet,
             snippetLineNumber: lineNumber,
+            glossaryTerms: newGlossaryTerms,
             isGenerating: false
           };
           return updated;
@@ -238,7 +253,7 @@ If you just want to append to the end, omit the lineNumber or use the last line.
 
   return (
     <div className="flex flex-col h-full bg-transparent">
-      <div className="p-3 text-[11px] font-bold text-zinc-500 uppercase tracking-widest border-b border-zinc-800 flex items-center gap-2 shrink-0">
+      <div className="p-3 text-[11px] font-bold text-zinc-500 uppercase tracking-widest border-b border-zinc-300 dark:border-zinc-800 flex items-center gap-2 shrink-0">
         <div className="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></div>
         Inkwell AI
       </div>
@@ -250,13 +265,13 @@ If you just want to append to the end, omit the lineNumber or use the last line.
               "w-full rounded p-3 text-xs leading-relaxed",
               msg.role === 'user' 
                 ? "bg-indigo-600/20 border border-indigo-500/20 text-indigo-100" 
-                : "bg-zinc-800 text-zinc-300"
+                : "bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
             )}>
               {msg.thoughts && (
-                <div className="mb-2 bg-zinc-900/50 p-2 rounded border border-zinc-800">
+                <div className="mb-2 bg-zinc-100 dark:bg-zinc-900/50 p-2 rounded border border-zinc-300 dark:border-zinc-800">
                   <button 
                     onClick={() => setExpandedThoughts(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                    className="w-full flex items-center gap-1 text-[10px] text-zinc-500 cursor-pointer hover:text-zinc-400"
+                    className="w-full flex items-center gap-1 text-[10px] text-zinc-500 cursor-pointer hover:text-zinc-600 dark:text-zinc-400"
                   >
                     <ChevronRight className={cn("w-3 h-3 transform transition-transform", expandedThoughts[idx] ? "rotate-90" : "")} />
                     Thinking Process
@@ -267,7 +282,7 @@ If you just want to append to the end, omit the lineNumber or use the last line.
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className="mt-2 text-[11px] leading-relaxed text-zinc-400 italic overflow-hidden"
+                        className="mt-2 text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400 italic overflow-hidden"
                       >
                         {msg.thoughts}
                       </motion.div>
@@ -279,41 +294,73 @@ If you just want to append to the end, omit the lineNumber or use the last line.
               {msg.role === 'user' ? (
                 <div className="whitespace-pre-wrap">{msg.content}</div>
               ) : (
-                <div className="prose prose-invert prose-sm max-w-none break-words">
+                <div className="prose dark:prose-invert prose-sm max-w-none break-words">
                   <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
                 </div>
               )}
 
               {msg.imageUrl && (
-                <div className="mt-3 rounded border border-zinc-700 overflow-hidden">
+                <div className="mt-3 rounded border border-zinc-300 dark:border-zinc-700 overflow-hidden">
                   <img src={msg.imageUrl} alt="AI Generated" className="w-full h-auto" draggable onDragStart={(e) => {
                     e.dataTransfer.setData('text/plain', msg.snippet || '');
                   }} />
                 </div>
               )}
 
+              {msg.svgCode && (
+                <div className="mt-2 text-xs border border-zinc-300 dark:border-zinc-800 rounded overflow-hidden">
+                  <details className="group">
+                    <summary className="bg-zinc-100 dark:bg-zinc-900 px-3 py-2 cursor-pointer list-none flex items-center justify-between text-zinc-600 dark:text-zinc-400 hover:text-zinc-700 dark:text-zinc-300">
+                      <span>View SVG Code</span>
+                      <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
+                    </summary>
+                    <div className="p-3 bg-zinc-950 overflow-x-auto max-h-60">
+                      <pre className="text-[10px] text-zinc-500 whitespace-pre-wrap font-mono"><code>{msg.svgCode}</code></pre>
+                    </div>
+                  </details>
+                </div>
+              )}
+
               {msg.role === 'model' && !msg.isGenerating && (
-                <div className="mt-2 pt-2 border-t border-zinc-800/50 text-[9px] text-zinc-500 font-medium select-none">
+                <div className="mt-2 pt-2 border-t border-zinc-300 dark:border-zinc-800/50 text-[9px] text-zinc-500 font-medium select-none">
                   Check important information
                 </div>
               )}
             </div>
 
             {msg.snippet && (
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex gap-2 w-full">
                 <button 
                   onClick={() => addSnippetToDoc(msg.snippet!, msg.snippetLineNumber)}
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-500 py-1 px-4 text-[10px] rounded font-semibold transition-colors text-white"
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-500 py-1.5 px-4 text-[10px] rounded flex items-center justify-center font-semibold transition-colors text-white"
                 >
                   <Plus className="w-3 h-3 inline-block mr-1" />
-                  {msg.snippetLineNumber ? `Replace Line ${msg.snippetLineNumber}` : "Add Snippet"}
+                  {msg.snippetLineNumber ? t(language, 'replaceLine', { line: `${msg.snippetLineNumber}`}) : t(language, 'addSnippet')}
                 </button>
+              </div>
+            )}
+
+            {msg.glossaryTerms && msg.glossaryTerms.length > 0 && (
+              <div className="mt-3 w-full flex flex-col gap-2">
+                <span className="text-[10px] font-bold text-zinc-500 uppercase">Suggested Glossary Terms</span>
+                {msg.glossaryTerms.map((term, i) => (
+                  <div key={i} className="flex flex-col bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 p-2 rounded relative group">
+                    <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">{term.term}</span>
+                    <span className="text-[10px] text-zinc-600 dark:text-zinc-400 mt-1">{term.definition}</span>
+                    <button 
+                      onClick={() => addGlossaryTerm(term.term, term.definition)}
+                      className="absolute right-2 top-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      Add to Glossary
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         ))}
         {loading && (
-          <div className="flex items-center gap-2 text-sm text-zinc-400">
+          <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
             <Sparkles className="w-4 h-4 animate-pulse text-purple-500" />
             Thinking...
           </div>
@@ -321,14 +368,14 @@ If you just want to append to the end, omit the lineNumber or use the last line.
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-3 border-t border-zinc-800 shrink-0">
+      <div className="p-3 border-t border-zinc-300 dark:border-zinc-800 shrink-0">
         <div className="relative">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             placeholder="Ask about your book..."
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-full px-4 py-2 text-xs text-zinc-200 focus:outline-none focus:border-indigo-500 transition-colors"
+            className="w-full bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 rounded-full px-4 py-2 text-xs text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-indigo-500 transition-colors"
           />
           <button 
             onClick={handleSend}
