@@ -1,7 +1,9 @@
+import { LanguageCode } from './lib/i18n';
+
 export interface Project {
   id: string;
   name: string;
-  language: 'en' | 'es' | 'fr' | 'de';
+  language: LanguageCode;
   lastModified: number;
 }
 

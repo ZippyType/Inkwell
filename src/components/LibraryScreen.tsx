@@ -83,6 +83,9 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
                 <option value="es">Español</option>
                 <option value="fr">Français</option>
                 <option value="de">Deutsch</option>
+                <option value="nl">Nederlands</option>
+                <option value="ko">한국어</option>
+                <option value="ja">日本語</option>
               </select>
             </div>
             <button 
