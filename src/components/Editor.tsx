@@ -143,7 +143,7 @@ export function Editor() {
             disabled={isPublishing}
             className={`px-3 py-1 text-xs font-semibold rounded text-white transition-all duration-300 ${isPublishing ? 'bg-emerald-600 scale-95' : 'bg-indigo-600 hover:bg-indigo-500'} ${showTutorial && tutorialStep === 5 ? 'ring-4 ring-yellow-400 ring-offset-2 ring-offset-white dark:ring-offset-[#09090b] z-50 rounded shadow-2xl relative scale-[1.1]' : ''}`}
           >
-            {isPublishing ? 'Published!' : 'Publish'}
+            {isPublishing ? 'Published!' : t(language, 'publish')}
           </button>
         </div>
       </header>
@@ -160,7 +160,7 @@ export function Editor() {
             }
           }}
           className="flex-1 w-full max-w-3xl mx-auto p-8 bg-transparent outline-none resize-none font-mono text-[15px] leading-relaxed text-zinc-800 dark:text-zinc-200 opacity-90"
-          placeholder="Once upon a time..."
+          placeholder={t(language, 'onceUponATime')}
           spellCheck="false"
         />
 
@@ -214,8 +214,8 @@ export function Editor() {
 
       <footer className="h-10 border-t border-zinc-200 dark:border-[#27272a] flex items-center px-4 justify-between bg-zinc-50 dark:bg-[#121214] text-[11px] text-zinc-500 shrink-0">
         <div className="flex gap-4">
-          <span>Words: {activeFile.content?.trim() ? activeFile.content.trim().split(/\s+/).length : 0}</span>
-          <span>Characters: {activeFile.content?.length || 0}</span>
+          <span>{t(language, 'words')}: {activeFile.content?.trim() ? activeFile.content.replace(/(?:^#+\s*)|(?:^\d+\.\s*)|(?:\*+.*?\*+)/gm, '').trim().split(/\s+/).filter(w => w.length > 0).length : 0}</span>
+          <span>{t(language, 'characters')}: {activeFile.content?.length || 0}</span>
         </div>
         <div className="flex gap-4">
           <span>UTF-8</span>

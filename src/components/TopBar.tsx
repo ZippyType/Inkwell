@@ -14,9 +14,11 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FontSelector } from './FontSelector';
+import { t } from '../lib/i18n';
 
 export function TopBar() {
   const { 
+    language,
     saveToFirebase, 
     addPart, 
     addChapter,
@@ -126,7 +128,7 @@ export function TopBar() {
           className="px-3 py-1 text-xs font-medium rounded transition-colors flex items-center gap-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 mr-2 border-r border-zinc-200 dark:border-zinc-700 pr-4"
         >
           <BookOpen className="w-3 h-3" />
-          Library
+          {t(language, 'library')}
         </button>
 
         {/* File Menu */}
@@ -135,7 +137,7 @@ export function TopBar() {
             onClick={() => toggleMenu('file')}
             className={`px-3 py-1 text-xs font-medium rounded transition-colors flex items-center gap-1 ${activeMenu === 'file' ? 'bg-zinc-200 dark:bg-zinc-800 text-white' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-zinc-800 dark:text-zinc-200'}`}
           >
-            File <ChevronDown className="w-3 h-3 opacity-50" />
+            {t(language, 'file')} <ChevronDown className="w-3 h-3 opacity-50" />
           </button>
           
           <AnimatePresence>
@@ -241,7 +243,7 @@ export function TopBar() {
             onClick={() => setShowFontMenu(!showFontMenu)}
             className={`px-3 py-1 text-xs font-medium rounded transition-colors flex items-center gap-1 ${showFontMenu || fontModeActive ? 'bg-blue-600/20 text-blue-400' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-zinc-800 dark:text-zinc-200'}`}
           >
-            <Type className="w-3.5 h-3.5" /> Font <ChevronDown className="w-3 h-3 opacity-50" />
+            <Type className="w-3.5 h-3.5" /> {t(language, 'font')} <ChevronDown className="w-3 h-3 opacity-50" />
           </button>
           
           {showFontMenu && (
@@ -255,7 +257,7 @@ export function TopBar() {
             onClick={() => toggleMenu('help')}
             className={`px-3 py-1 text-xs font-medium rounded transition-colors flex items-center gap-1 ${activeMenu === 'help' ? 'bg-zinc-200 dark:bg-zinc-800 text-white' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-zinc-800 dark:text-zinc-200'}`}
           >
-            Help <ChevronDown className="w-3 h-3 opacity-50" />
+            {t(language, 'help')} <ChevronDown className="w-3 h-3 opacity-50" />
           </button>
           
           <AnimatePresence>
@@ -313,7 +315,7 @@ export function TopBar() {
         )}
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          Ready
+          {t(language, 'ready')}
         </div>
       </div>
     </div>

@@ -103,26 +103,18 @@ export default function App() {
   }, [projectId]);
 
   const handleProjectSelect = (id: string, lang: LanguageCode) => {
-    // We open in same tab to avoid iframe popup issues (as per standard constraints)
-    // Actually user requested "opens the app in a new tab"
-    // Wait, let's strictly do `window.open('?project=' + id, '_blank')` if they already are in library context?
-    // User requested "opens the app in a new tab with the specified language"
-    // So we can do window.open:
-    window.open(`?project=${id}`, '_blank');
-    // But since it's a sandbox/iframe, it might be blocked. Let's provide an inline alternative:
-    // We just set it. If it works great, but we also set state just in case it doesn't navigate.
     setProjectLang(lang);
     setProjectId(id);
     window.history.pushState({}, '', `?project=${id}`);
   };
 
-  if (!projectId) {
-    return <LibraryScreen onSelectProject={handleProjectSelect} />;
-  }
-
   return (
-    <StudioProvider projectId={projectId} initialLanguage={projectLang}>
-      <AppContent projectId={projectId} />
+    <StudioProvider key={projectId || 'library'} projectId={projectId || ''} initialLanguage={projectLang}>
+      {!projectId ? (
+        <LibraryScreen onSelectProject={handleProjectSelect} />
+      ) : (
+        <AppContent projectId={projectId} />
+      )}
     </StudioProvider>
   );
 }

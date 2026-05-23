@@ -5,8 +5,9 @@ import { auth, db, storage, signInWithGoogle } from '../lib/firebase';
 import { get, set, del } from 'idb-keyval';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import LZString from 'lz-string';
+import JSZip from 'jszip';
 import { LanguageCode, translations, t } from '../lib/i18n';
 
 interface StudioContextType {
@@ -48,6 +49,7 @@ interface StudioContextType {
   updateFileContent: (id: string, content: string) => void;
   deleteFile: (id: string) => void;
   renameFile: (id: string, name: string) => void;
+  reorderItems: (draggedId: string, targetId: string) => void;
   addAsset: (url: string, name: string, caption?: string) => Promise<string>;
   addCustomFont: (dataUrl: string, name: string) => Promise<string>;
   addSnippet: (content: string, name: string) => void;
@@ -80,7 +82,9 @@ const generateTOCInfo = (currentFiles: FileSystemItem[], lang: LanguageCode) => 
   });
   const rootChaptersList = currentFiles.filter(f => !f.parentId && f.type === 'chapter' && f.name !== 'Table Of Contents' && f.name !== tocLabel).sort((a, b) => a.order - b.order);
   if (rootChaptersList.length > 0) {
-    toc += `## Other Chapters\n\n`;
+    if (partsList.length > 0) {
+      toc += `## Other Chapters\n\n`;
+    }
     rootChaptersList.forEach(c => {
       toc += `- ${c.name}\n`;
     });
@@ -100,9 +104,11 @@ export function StudioProvider({ children, projectId, initialLanguage }: { child
     }
     const partLabel = translations[initialLanguage]?.part || "Part";
     const chapterLabel = translations[initialLanguage]?.chapter || "Chapter";
+    const welcomeTitle = translations[initialLanguage]?.welcomeToYourBook || "Welcome to your book";
+    const writeAmazing = translations[initialLanguage]?.writeSomethingAmazing || "Write something amazing...";
     return [
       { id: 'p1', parentId: null, name: `${partLabel} 1`, type: 'part', order: 1 },
-      { id: 'c1', parentId: 'p1', name: `${chapterLabel} 1`, type: 'chapter', content: '# Welcome to your book\n\nWrite something amazing...', order: 1 }
+      { id: 'c1', parentId: 'p1', name: `${chapterLabel} 1`, type: 'chapter', content: `# ${welcomeTitle}\n\n${writeAmazing}`, order: 1 }
     ];
   });
   
@@ -287,26 +293,32 @@ export function StudioProvider({ children, projectId, initialLanguage }: { child
   }, [files]);
 
   const addPart = () => {
-    const partsCount = files.filter(f => f.type === 'part').length;
+    const currentParts = files.filter(f => f.type === 'part');
+    const maxOrder = currentParts.reduce((max, f) => Math.max(max, f.order), 0);
+    const partsCount = currentParts.length;
+    const partLabel = t(language, 'part');
     const newPart: FileSystemItem = {
       id: uuidv4(),
       parentId: null,
-      name: `Part ${partsCount + 1}`,
+      name: `${partLabel} ${partsCount + 1}`,
       type: 'part',
-      order: partsCount + 1
+      order: maxOrder + 1
     };
     setFiles([...files, newPart]);
   };
 
   const addChapter = (parentId: string | null, initialContent: string = '', initialName?: string) => {
-    const nextNum = files.filter(f => f.type === 'chapter').length + 1;
+    const siblingChapters = files.filter(f => f.parentId === parentId && f.type === 'chapter' && f.name !== 'Table Of Contents');
+    const maxOrder = siblingChapters.reduce((max, f) => Math.max(max, f.order), 0);
+    const chaptersCount = files.filter(f => f.type === 'chapter' && f.name !== 'Table Of Contents').length;
+    const chapterLabel = t(language, 'chapter');
     const newChapter: FileSystemItem = {
       id: uuidv4(),
       parentId,
-      name: initialName || `Chapter ${nextNum}`,
+      name: initialName || `${chapterLabel} ${chaptersCount + 1}`,
       type: 'chapter',
       content: initialContent,
-      order: nextNum
+      order: maxOrder + 1
     };
     setFiles([...files, newChapter]);
     setActiveFileId(newChapter.id);
@@ -323,6 +335,88 @@ export function StudioProvider({ children, projectId, initialLanguage }: { child
 
   const renameFile = (id: string, name: string) => {
     setFiles(files.map(f => f.id === id ? { ...f, name } : f));
+  };
+
+  const reorderItems = (draggedId: string, targetId: string) => {
+    const draggedItem = files.find(f => f.id === draggedId);
+    if (!draggedItem) return;
+
+    if (draggedId === targetId) return;
+
+    if (targetId === 'root') {
+      if (draggedItem.type === 'chapter') {
+        const rootChapters = files.filter(f => !f.parentId && f.type === 'chapter');
+        const maxOrder = rootChapters.reduce((max, f) => Math.max(max, f.order), 0);
+        setFiles(prev => prev.map(f => {
+          if (f.id === draggedId) {
+            return { ...f, parentId: null, order: maxOrder + 1 };
+          }
+          return f;
+        }));
+      }
+      return;
+    }
+
+    if (draggedItem.type === 'chapter') {
+      const targetItem = files.find(f => f.id === targetId);
+      if (targetItem && targetItem.id !== draggedId) {
+        if (targetItem.type === 'chapter') {
+          const parentId = targetItem.parentId;
+          const siblingChapters = files
+            .filter(f => f.parentId === parentId && f.type === 'chapter' && f.id !== draggedId && f.name !== 'Table Of Contents')
+            .sort((a, b) => a.order - b.order);
+          
+          const targetIndex = siblingChapters.findIndex(f => f.id === targetId);
+          const updatedSiblings = [...siblingChapters];
+          updatedSiblings.splice(targetIndex, 0, { ...draggedItem, parentId });
+          
+          const reorderedSiblings = updatedSiblings.map((item, idx) => ({
+            ...item,
+            order: idx + 1
+          }));
+
+          setFiles(prev => prev.map(f => {
+            const reordered = reorderedSiblings.find(r => r.id === f.id);
+            if (reordered) return reordered;
+            if (f.id === draggedId) return { ...draggedItem, parentId, order: reorderedSiblings.find(r => r.id === draggedId)?.order || 1 };
+            return f;
+          }));
+        } else if (targetItem.type === 'part') {
+          const parentId = targetItem.id;
+          const chaptersInPart = files.filter(f => f.parentId === parentId && f.type === 'chapter');
+          const maxOrder = chaptersInPart.reduce((max, f) => Math.max(max, f.order), 0);
+          
+          setFiles(prev => prev.map(f => {
+            if (f.id === draggedId) {
+              return { ...f, parentId, order: maxOrder + 1 };
+            }
+            return f;
+          }));
+        }
+      }
+    } else if (draggedItem.type === 'part') {
+      const targetItem = files.find(f => f.id === targetId);
+      if (targetItem && targetItem.type === 'part' && targetItem.id !== draggedId) {
+        const siblingParts = files
+          .filter(f => f.type === 'part' && f.id !== draggedId)
+          .sort((a, b) => a.order - b.order);
+        
+        const targetIndex = siblingParts.findIndex(f => f.id === targetId);
+        const updatedSiblings = [...siblingParts];
+        updatedSiblings.splice(targetIndex, 0, draggedItem);
+        
+        const reorderedParts = updatedSiblings.map((item, idx) => ({
+          ...item,
+          order: idx + 1
+        }));
+        
+        setFiles(prev => prev.map(f => {
+          const reordered = reorderedParts.find(r => r.id === f.id);
+          if (reordered) return reordered;
+          return f;
+        }));
+      }
+    }
   };
     
   const addAsset = async (dataUrl: string, name: string, caption?: string) => {
@@ -387,9 +481,13 @@ export function StudioProvider({ children, projectId, initialLanguage }: { child
   const deleteAll = () => {
     const partId = uuidv4();
     const chapterId = uuidv4();
+    const partLabel = t(language, 'part');
+    const chapterLabel = t(language, 'chapter');
+    const welcomeTitle = t(language, 'welcomeToYourBook');
+    const writeAmazing = t(language, 'writeSomethingAmazing');
     setFiles([
-      { id: partId, parentId: null, name: 'Part 1', type: 'part', order: 1 },
-      { id: chapterId, parentId: partId, name: 'Chapter 1', type: 'chapter', content: '# Welcome to your book\n\nWrite something amazing...', order: 1 }
+      { id: partId, parentId: null, name: `${partLabel} 1`, type: 'part', order: 1 },
+      { id: chapterId, parentId: partId, name: `${chapterLabel} 1`, type: 'chapter', content: `# ${welcomeTitle}\n\n${writeAmazing}`, order: 1 }
     ]);
     setAssets([]);
     setSnippets([]);
@@ -401,20 +499,25 @@ export function StudioProvider({ children, projectId, initialLanguage }: { child
     if (!user) return;
     
     try {
-      const exportData = {
-        files,
-        assets,
-        snippets,
-        version: '1.0',
-        timestamp: new Date().toISOString()
-      };
+      // 1. Get project name
+      const projects = JSON.parse(localStorage.getItem('inkwell-projects') || '[]');
+      const project = projects.find((x: any) => x.id === projectId);
+      const bookTitle = project ? project.name.replace(/[^a-zA-Z0-9.\-_]/g, '_') : 'UntitledBook';
       
-      const jsonString = JSON.stringify(exportData);
-      const compressed = LZString.compressToBase64(jsonString);
+      // 2. Zip content
+      const zip = new JSZip();
+      files.forEach(file => {
+          if (file.type === 'chapter' && file.content) {
+              zip.file(`${file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')}.md`, file.content);
+          }
+      });
       
-      // Prompt says: copy everything to FireBase storage, into this directory: “infomation/{UUID}/SaveFile/“
-      const fileRef = ref(storage, `infomation/${user.uid}/SaveFile/backup.lz`);
-      await uploadString(fileRef, compressed, 'base64');
+      const content = await zip.generateAsync({ type: 'blob' });
+      
+      // 3. Upload content
+      // Path: /{userid}/{booktitle}/contents.zip
+      const fileRef = ref(storage, `${user.uid}/${bookTitle}/contents.zip`);
+      await uploadBytes(fileRef, content);
       
       // Also save metadata to Firestore
       await setDoc(doc(db, `users/${user.uid}/settings/info`), {
@@ -492,6 +595,7 @@ export function StudioProvider({ children, projectId, initialLanguage }: { child
       updateFileContent,
       deleteFile,
       renameFile,
+      reorderItems,
       addAsset,
       addCustomFont,
       addSnippet,

@@ -25,11 +25,12 @@ import {
 import { useStudio } from '../context/StudioContext';
 import { cn } from '../lib/utils';
 import { compressImage } from '../lib/imageUtils';
-import { t } from '../lib/i18n';
+import { t, LanguageCode } from '../lib/i18n';
 
 export function Sidebar() {
   const { 
     language,
+    setLanguage,
     projectId,
     files, 
     assets,
@@ -45,19 +46,38 @@ export function Sidebar() {
     renameFile,
     addAsset,
     updateFileContent,
+    draggedFileId,
     setDraggedFileId,
+    reorderItems,
     user,
     authLoading,
     login,
     logout,
     saveToFirebase,
+    deleteAll,
     glossaryTerms,
     addGlossaryTerm,
     deleteGlossaryTerm
   } = useStudio();
   
   const [expandedParts, setExpandedParts] = useState<Record<string, boolean>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
   const [manuscriptSearch, setManuscriptSearch] = useState('');
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const getProjectName = () => {
+    const projects = JSON.parse(localStorage.getItem('inkwell-projects') || '[]');
+    const project = projects.find((x: any) => x.id === projectId);
+    return project ? project.name : 'Untitled Book';
+  };
+  const [bookTitleInput, setBookTitleInput] = useState(getProjectName());
+
+  const handleRenameSave = (id: string) => {
+    if (editingName.trim()) {
+      renameFile(id, editingName.trim());
+    }
+    setEditingId(null);
+  };
   const [snippetSearch, setSnippetSearch] = useState('');
   const [showSnippetSearch, setShowSnippetSearch] = useState(false);
   const [isTocExpanded, setIsTocExpanded] = useState(false);
@@ -119,14 +139,14 @@ export function Sidebar() {
     
     return parts.filter(part => {
       if (part.name.toLowerCase().includes(lowerSearch)) return true;
-      const chaptersInPart = files.filter(f => f.parentId === part.id && f.type === 'chapter' && f.name !== 'Table Of Contents');
+      const chaptersInPart = files.filter(f => f.parentId === part.id && f.type === 'chapter' && f.name !== 'Table Of Contents' && f.name !== t(language, 'tableOfContents'));
       return chaptersInPart.some(c => c.name.toLowerCase().includes(lowerSearch));
     });
   };
 
   const getFilteredChaptersInPart = (partId: string) => {
     const chapters = files
-      .filter(f => f.parentId === partId && f.type === 'chapter' && f.name !== 'Table Of Contents')
+      .filter(f => f.parentId === partId && f.type === 'chapter' && f.name !== 'Table Of Contents' && f.name !== t(language, 'tableOfContents'))
       .sort((a, b) => a.order - b.order);
       
     if (!manuscriptSearch) return chapters;
@@ -193,17 +213,19 @@ export function Sidebar() {
                   <div key={'toc-'+part.id} className="mb-2 text-xs">
                      <span className="font-bold text-zinc-600 dark:text-zinc-400">{part.name}</span>
                      <div className="ml-2 border-l border-zinc-300 dark:border-zinc-800 pl-2 mt-1 space-y-1">
-                        {files.filter(f => f.parentId === part.id && f.type === 'chapter' && f.name !== 'Table Of Contents').sort((a,b)=>a.order-b.order).map(c => (
+                        {files.filter(f => f.parentId === part.id && f.type === 'chapter' && f.name !== 'Table Of Contents' && f.name !== t(language, 'tableOfContents')).sort((a,b)=>a.order-b.order).map(c => (
                            <div key={'toc-'+c.id} className="text-zinc-500 truncate" title={c.name}>{c.name}</div>
                         ))}
                      </div>
                   </div>
                 ))}
-                {files.filter(f => !f.parentId && f.type === 'chapter' && f.name !== 'Table Of Contents').sort((a,b)=>a.order-b.order).length > 0 && (
+                {files.filter(f => !f.parentId && f.type === 'chapter' && f.name !== 'Table Of Contents' && f.name !== t(language, 'tableOfContents')).sort((a,b)=>a.order-b.order).length > 0 && (
                   <div className="mb-2 text-xs">
-                    <span className="font-bold text-zinc-600 dark:text-zinc-400">Other Chapters</span>
-                    <div className="ml-2 border-l border-zinc-300 dark:border-zinc-800 pl-2 mt-1 space-y-1">
-                      {files.filter(f => !f.parentId && f.type === 'chapter' && f.name !== 'Table Of Contents').sort((a,b)=>a.order-b.order).map(c => (
+                    {parts.length > 0 && (
+                      <span className="font-bold text-zinc-600 dark:text-zinc-400">Other Chapters</span>
+                    )}
+                    <div className={cn("mt-1 space-y-1", parts.length > 0 ? "ml-2 border-l border-zinc-300 dark:border-zinc-800 pl-2" : "")}>
+                      {files.filter(f => !f.parentId && f.type === 'chapter' && f.name !== 'Table Of Contents' && f.name !== t(language, 'tableOfContents')).sort((a,b)=>a.order-b.order).map(c => (
                         <div key={'toc-'+c.id} className="text-zinc-500 truncate" title={c.name}>{c.name}</div>
                       ))}
                     </div>
@@ -214,7 +236,18 @@ export function Sidebar() {
           </AnimatePresence>
         </div>
 
-        <div className="flex items-center justify-between mb-2 mt-6">
+        <div 
+          onDragOver={(e) => {
+            if (draggedFileId) e.preventDefault();
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (draggedFileId) {
+              reorderItems(draggedFileId, 'root');
+            }
+          }}
+          className="flex items-center justify-between mb-2 mt-6 p-1 rounded hover:bg-zinc-200/50 dark:hover:bg-zinc-800/15 transition-colors cursor-default"
+        >
           <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{t(language, 'manuscript')}</h2>
           {user && (
             <button 
@@ -248,19 +281,70 @@ export function Sidebar() {
                   e.dataTransfer.setData('text/plain', part.id); // Required for Firefox
                 }}
                 onDragEnd={() => setDraggedFileId(null)}
+                onDragOver={(e) => {
+                  if (draggedFileId && draggedFileId !== part.id) {
+                    e.preventDefault();
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (draggedFileId) {
+                    reorderItems(draggedFileId, part.id);
+                  }
+                }}
                 className={cn(
-                  "flex items-center gap-2 py-1 text-sm cursor-pointer group",
+                  "flex items-center gap-2 py-1 text-sm cursor-pointer group rounded justify-between px-1",
                   activeFileId === part.id ? "text-indigo-400 font-medium" : "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:text-zinc-100"
                 )}
                 onClick={() => togglePart(part.id)}
               >
-                <motion.div
-                  animate={{ rotate: expandedParts[part.id] || manuscriptSearch ? 90 : 0 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </motion.div>
-                <span className="flex-1">{part.name}</span>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <motion.div
+                    animate={{ rotate: expandedParts[part.id] || manuscriptSearch ? 90 : 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+                  </motion.div>
+                  {editingId === part.id ? (
+                    <input
+                      type="text"
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onBlur={() => handleRenameSave(part.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleRenameSave(part.id);
+                        if (e.key === 'Escape') setEditingId(null);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 bg-white dark:bg-zinc-800 border border-indigo-500 rounded px-1 text-xs py-0.5 focus:outline-none text-zinc-800 dark:text-zinc-100 font-medium"
+                      autoFocus
+                    />
+                  ) : (
+                    <span 
+                      className="flex-1 truncate"
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        setEditingId(part.id);
+                        setEditingName(part.name);
+                      }}
+                    >
+                      {part.name}
+                    </span>
+                  )}
+                </div>
+                {editingId !== part.id && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingId(part.id);
+                      setEditingName(part.name);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-all shrink-0 ml-1"
+                    title="Rename Part"
+                  >
+                    <Edit2 className="w-3 h-3" />
+                  </button>
+                )}
               </div>
 
               <AnimatePresence>
@@ -280,15 +364,64 @@ export function Sidebar() {
                             e.dataTransfer.setData('text/plain', chapter.id);
                           }}
                           onDragEnd={() => setDraggedFileId(null)}
+                          onDragOver={(e) => {
+                            if (draggedFileId && draggedFileId !== chapter.id) {
+                              e.preventDefault();
+                            }
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggedFileId) {
+                              reorderItems(draggedFileId, chapter.id);
+                            }
+                          }}
                           className={cn(
-                            "flex items-center gap-2 pl-3 py-1 cursor-pointer group text-sm",
+                            "flex items-center gap-2 pl-3 py-1 cursor-pointer group text-sm justify-between rounded px-1",
                             activeFileId === chapter.id 
                               ? "text-indigo-400 bg-indigo-500/10 border-r-2 border-indigo-500" 
                               : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-300"
                           )}
                           onClick={() => setActiveFileId(chapter.id)}
                         >
-                          <span className="truncate flex-1">{chapter.name}</span>
+                          {editingId === chapter.id ? (
+                            <input
+                              type="text"
+                              value={editingName}
+                              onChange={(e) => setEditingName(e.target.value)}
+                              onBlur={() => handleRenameSave(chapter.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleRenameSave(chapter.id);
+                                if (e.key === 'Escape') setEditingId(null);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex-1 bg-white dark:bg-zinc-800 border border-indigo-500 rounded px-1 text-xs py-0.5 focus:outline-none text-zinc-800 dark:text-zinc-100"
+                              autoFocus
+                            />
+                          ) : (
+                            <>
+                              <span 
+                                className="truncate flex-1"
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingId(chapter.id);
+                                  setEditingName(chapter.name);
+                                }}
+                              >
+                                {chapter.name}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingId(chapter.id);
+                                  setEditingName(chapter.name);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-all shrink-0 ml-1"
+                                title="Rename Chapter"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       ))}
                     <button
@@ -317,22 +450,71 @@ export function Sidebar() {
                   e.dataTransfer.setData('text/plain', chapter.id);
                 }}
                 onDragEnd={() => setDraggedFileId(null)}
+                onDragOver={(e) => {
+                  if (draggedFileId && draggedFileId !== chapter.id) {
+                    e.preventDefault();
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (draggedFileId) {
+                    reorderItems(draggedFileId, chapter.id);
+                  }
+                }}
                 className={cn(
-                  "flex items-center gap-2 px-2 py-1 cursor-pointer group text-sm rounded",
+                  "flex items-center gap-2 px-2 py-1 cursor-pointer group text-sm rounded justify-between",
                   activeFileId === chapter.id 
                     ? "text-indigo-400 bg-indigo-500/10 border-r-2 border-indigo-500" 
                     : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-300"
                 )}
                 onClick={() => setActiveFileId(chapter.id)}
               >
-                <span className="flex-1 truncate pl-1">{chapter.name}</span>
+                {editingId === chapter.id ? (
+                  <input
+                    type="text"
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onBlur={() => handleRenameSave(chapter.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleRenameSave(chapter.id);
+                      if (e.key === 'Escape') setEditingId(null);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex-1 bg-white dark:bg-zinc-800 border border-indigo-500 rounded px-1 text-xs py-0.5 focus:outline-none text-zinc-800 dark:text-zinc-100"
+                    autoFocus
+                  />
+                ) : (
+                  <>
+                    <span 
+                      className="flex-1 truncate pl-1"
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        setEditingId(chapter.id);
+                        setEditingName(chapter.name);
+                      }}
+                    >
+                      {chapter.name}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingId(chapter.id);
+                        setEditingName(chapter.name);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-all shrink-0 ml-1"
+                      title="Rename Chapter"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                    </button>
+                  </>
+                )}
               </div>
             ))}
 
           {/* Snippets Section */}
           <div className="mt-8 mb-4 px-2">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Snippet Library</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{t(language, 'snippetLibrary')}</h2>
               <div className="flex items-center gap-1">
                 <button 
                   onClick={() => setShowSnippetSearch(!showSnippetSearch)}
@@ -365,7 +547,7 @@ export function Sidebar() {
 
             <div className="space-y-1 mt-2">
               {snippets.length === 0 ? (
-                <p className="text-[10px] text-zinc-500 italic pl-1">No snippets saved yet.</p>
+                <p className="text-[10px] text-zinc-500 italic pl-1">{t(language, 'noSnippets')}</p>
               ) : (
                 snippets
                   .filter(s => s.name.toLowerCase().includes(snippetSearch.toLowerCase()))
@@ -571,15 +753,17 @@ export function Sidebar() {
         <div className="flex gap-2 mb-2">
           <button
             onClick={() => addChapter(null)}
-            className="flex-1 py-1.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-medium rounded transition-colors"
+            className="flex-1 py-1.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-[10px] sm:text-xs font-semibold rounded transition-colors truncate whitespace-nowrap px-1"
+            title={t(language, 'newChapter')}
           >
-            + New Chapter
+            + {t(language, 'newChapter')}
           </button>
           <button
             onClick={addPart}
-            className="flex-1 py-1.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-medium rounded transition-colors"
+            className="flex-1 py-1.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-[10px] sm:text-xs font-semibold rounded transition-colors truncate whitespace-nowrap px-1"
+            title={t(language, 'newPart')}
           >
-            + New Part
+            + {t(language, 'newPart')}
           </button>
         </div>
 
@@ -602,7 +786,14 @@ export function Sidebar() {
             >
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-            <button className="p-1.5 hover:bg-zinc-300 dark:bg-zinc-700 rounded transition-colors text-zinc-600 dark:text-zinc-400">
+            <button 
+              onClick={() => {
+                setBookTitleInput(getProjectName());
+                setShowSettingsModal(true);
+              }}
+              className="p-1.5 hover:bg-zinc-300 dark:bg-zinc-700 rounded transition-colors text-zinc-600 dark:text-zinc-400"
+              title="Settings"
+            >
               <Settings className="w-4 h-4" />
             </button>
             {user ? (
@@ -625,6 +816,139 @@ export function Sidebar() {
           </div>
         </div>
       </div>
+
+      {showSettingsModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[500] p-4 text-zinc-900 dark:text-zinc-100">
+          <div className="bg-white dark:bg-[#18181b] w-full max-w-sm border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Settings className="w-4 h-4 text-indigo-500" />
+                <span>{t(language, 'settings')}</span>
+              </h3>
+              <button 
+                onClick={() => setShowSettingsModal(false)}
+                className="p-1 hover:bg-zinc-150 dark:hover:bg-zinc-800 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content body */}
+            <div className="p-4 space-y-4 text-xs">
+              {/* Book Title */}
+              <div className="space-y-1">
+                <label className="text-zinc-500 font-medium font-mono uppercase tracking-wider block">Book Title</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={bookTitleInput}
+                    onChange={(e) => setBookTitleInput(e.target.value)}
+                    className="flex-1 bg-zinc-50 dark:bg-[#121214] border border-zinc-200 dark:border-[#27272a] rounded p-2 text-xs focus:outline-none focus:border-indigo-500 text-zinc-800 dark:text-zinc-100"
+                    placeholder="E.g., My Awesome Book"
+                  />
+                  <button
+                    onClick={() => {
+                      if (bookTitleInput.trim()) {
+                        const projects = JSON.parse(localStorage.getItem('inkwell-projects') || '[]');
+                        const updated = projects.map((x: any) => {
+                          if (x.id === projectId) {
+                            return { ...x, name: bookTitleInput.trim() };
+                          }
+                          return x;
+                        });
+                        localStorage.setItem('inkwell-projects', JSON.stringify(updated));
+                        window.dispatchEvent(new Event('storage'));
+                        alert("Book title updated!");
+                      }
+                    }}
+                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-medium transition-colors cursor-pointer"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+
+              {/* Language Code Selector */}
+              <div className="space-y-1">
+                <label className="text-zinc-500 font-medium font-mono uppercase tracking-wider block">{t(language, 'language')}</label>
+                <select
+                  value={language}
+                  onChange={(e) => {
+                    const newLang = e.target.value as LanguageCode;
+                    setLanguage(newLang);
+                    const projects = JSON.parse(localStorage.getItem('inkwell-projects') || '[]');
+                    const updated = projects.map((x: any) => {
+                      if (x.id === projectId) {
+                        return { ...x, language: newLang };
+                      }
+                      return x;
+                    });
+                    localStorage.setItem('inkwell-projects', JSON.stringify(updated));
+                    window.dispatchEvent(new Event('storage'));
+                  }}
+                  className="w-full bg-zinc-50 dark:bg-[#121214] border border-zinc-200 dark:border-[#27272a] rounded p-2 text-xs focus:outline-none focus:border-indigo-500 text-zinc-800 dark:text-zinc-100"
+                >
+                  <option value="en">English (EN)</option>
+                  <option value="es">Español (ES)</option>
+                  <option value="fr">Français (FR)</option>
+                  <option value="de">Deutsch (DE)</option>
+                  <option value="nl">Nederlands (NL)</option>
+                  <option value="ko">한국어 (KO)</option>
+                  <option value="ja">日本語 (JA)</option>
+                </select>
+              </div>
+
+              {/* Theme Selector */}
+              <div className="space-y-1">
+                <label className="text-zinc-500 font-medium font-mono uppercase tracking-wider block">Interface theme</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setTheme('light')}
+                    className={cn(
+                      "flex-1 py-1.5 border rounded text-center transition-all cursor-pointer",
+                      theme === 'light' 
+                        ? "border-indigo-500 bg-indigo-500/10 text-indigo-500 font-semibold" 
+                        : "border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
+                    )}
+                  >
+                    Light
+                  </button>
+                  <button
+                    onClick={() => setTheme('dark')}
+                    className={cn(
+                      "flex-1 py-1.5 border rounded text-center transition-all cursor-pointer",
+                      theme === 'dark' 
+                        ? "border-indigo-500 bg-indigo-500/10 text-indigo-500 font-semibold" 
+                        : "border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400"
+                    )}
+                  >
+                    Dark
+                  </button>
+                </div>
+              </div>
+
+              {/* Reset/Delete All */}
+              <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 space-y-2">
+                <p className="text-[11px] text-zinc-400 font-mono">
+                  Danger zone: This will completely erase all parts and chapters in this project locally.
+                </p>
+                <button
+                  onClick={() => {
+                    if (confirm("Are you absolutely sure you want to delete all parts and chapters in this book? This cannot be undone.")) {
+                      deleteAll();
+                      setShowSettingsModal(false);
+                    }
+                  }}
+                  className="w-full py-2 border border-red-500/30 dark:border-red-500/20 bg-red-500/5 hover:bg-red-500/15 text-red-500 font-medium rounded transition-all text-xs cursor-pointer"
+                >
+                  Clear Manuscript Data
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

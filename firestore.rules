@@ -53,5 +53,9 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
     }
+
+    match /verificationCodes/{docId} {
+      allow read, write: if true;
+    }
   }
 }

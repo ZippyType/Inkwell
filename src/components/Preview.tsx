@@ -3,6 +3,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useStudio } from '../context/StudioContext';
+import { t } from '../lib/i18n';
 import { useMarkdownProcessor } from '../lib/markdown';
 import { ImageEditorModal } from './ImageEditorModal';
 import { Type, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
@@ -12,7 +13,7 @@ import { motion } from 'framer-motion';
 const STYLED_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'ul', 'ol', 'li', 'strong', 'em', 'span'] as const;
 
 export function Preview() {
-  const { files, activeFileId, updateFileContent, fontModeActive, selectedFontForMode, selectedElementsForMode, setSelectedElementsForMode, componentFonts, defaultFont } = useStudio();
+  const { language, files, activeFileId, updateFileContent, fontModeActive, selectedFontForMode, selectedElementsForMode, setSelectedElementsForMode, componentFonts, defaultFont } = useStudio();
   const [editingImage, setEditingImage] = useState<string | null>(null);
   const [showFontMenu, setShowFontMenu] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(1);
@@ -247,8 +248,8 @@ export function Preview() {
               {processedContent}
             </Markdown>
           ) : (
-            <div className="h-full flex items-center justify-center text-zinc-700 dark:text-zinc-300 dark:text-zinc-700 select-none italic">
-              Drop assets here to insert
+            <div className="h-full flex items-center justify-center text-zinc-700 dark:text-zinc-300 dark:text-zinc-750 select-none italic text-center p-4">
+              {t(language, 'dropAssets')}
             </div>
           )}
         </div>
