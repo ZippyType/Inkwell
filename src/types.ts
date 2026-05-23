@@ -5,6 +5,7 @@ export interface Project {
   name: string;
   language: LanguageCode;
   lastModified: number;
+  dailyWordCountGoal?: number;
 }
 
 export interface FileSystemItem {

@@ -14,6 +14,7 @@ import { useStudio } from './context/StudioContext';
 import { Info } from 'lucide-react';
 import { LibraryScreen } from './components/LibraryScreen';
 import { LanguageCode } from './lib/i18n';
+import { Toaster, toast } from 'react-hot-toast';
 
 function AppContent({ projectId }: { projectId: string }) {
   const { showTutorial, tutorialStep, fontModeActive, showGuide, setShowGuide, theme } = useStudio();
@@ -37,6 +38,7 @@ function AppContent({ projectId }: { projectId: string }) {
         if (p) {
           p.lastModified = Date.now();
           localStorage.setItem('inkwell-projects', JSON.stringify(projects));
+          toast.success("Saved!", { duration: 1000, position: 'bottom-right' });
         }
       }
     }, 30000);
@@ -110,6 +112,7 @@ export default function App() {
 
   return (
     <StudioProvider key={projectId || 'library'} projectId={projectId || ''} initialLanguage={projectLang}>
+      <Toaster />
       {!projectId ? (
         <LibraryScreen onSelectProject={handleProjectSelect} />
       ) : (

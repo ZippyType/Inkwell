@@ -1,5 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useStudio } from '../context/StudioContext';
+import { PomodoroTimer } from './PomodoroTimer';
+import { WordGoalProgress } from './WordGoalProgress';
+import { exportToPDF } from '../lib/pdfExporter';
 import { 
   FileText, 
   Type, 
@@ -19,6 +22,7 @@ import { t } from '../lib/i18n';
 export function TopBar() {
   const { 
     language,
+    projectId,
     saveToFirebase, 
     addPart, 
     addChapter,
@@ -303,6 +307,14 @@ export function TopBar() {
 
       {/* Status Indicators */}
       <div className="flex items-center gap-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+        <button onClick={() => {
+          // Temporarily mock files as an array for the export, in a real scenario you would pass the actual files
+          exportToPDF({name: "Export", id: "1", language: 'en', lastModified: Date.now()}, []); 
+          alert('PDF Export functionality coming soon!');
+        }} className="hover:text-indigo-500">PDF Export</button>
+        <PomodoroTimer />
+        <WordGoalProgress projectId={projectId} />
+
         {fontModeActive && (
           <motion.div 
             animate={{ opacity: [0.5, 1, 0.5] }}

@@ -97,7 +97,13 @@ export const translations = {
     accountDeletedSuccess: "Your Inkwell Account and all associated data have been permanently destroyed.",
     fetchSecurityFailed: "Failed to fetch security credentials. Checking network...",
     savePasswordFailed: "Could not save password profile: {error}",
-    accountDeletionFailed: "Account deletion failed: {error}"
+    accountDeletionFailed: "Account deletion failed: {error}",
+    dailyWordGoal: "Daily Word Goal",
+    pomodoro: "Pomodoro",
+    work: "Work",
+    break: "Break",
+    start: "Start",
+    stop: "Stop"
   },
   es: {
     manuscript: "Manuscrito",
@@ -195,7 +201,13 @@ export const translations = {
     accountDeletedSuccess: "Su cuenta de Inkwell y todos los datos asociados han sido destruidos permanentemente.",
     fetchSecurityFailed: "Error al recuperar las credenciales de seguridad. Comprobando red...",
     savePasswordFailed: "No se pudo guardar el perfil de contraseña: {error}",
-    accountDeletionFailed: "Error al eliminar la cuenta: {error}"
+    accountDeletionFailed: "Error al eliminar la cuenta: {error}",
+    dailyWordGoal: "Meta Diaria de Palabras",
+    pomodoro: "Pomodoro",
+    work: "Trabajo",
+    break: "Descanso",
+    start: "Iniciar",
+    stop: "Detener"
   },
   fr: {
     manuscript: "Manuscrit",
@@ -293,7 +305,13 @@ export const translations = {
     accountDeletedSuccess: "Votre compte Inkwell et toutes les données associées ont été définitivement détruits.",
     fetchSecurityFailed: "Échec de la récupération des informations de sécurité. Vérification du réseau...",
     savePasswordFailed: "Impossible d'enregistrer le profil de mot de passe: {error}",
-    accountDeletionFailed: "Échec de la suppression du compte: {error}"
+    accountDeletionFailed: "Échec de la suppression du compte: {error}",
+    dailyWordGoal: "Objectif Quotidien de Mots",
+    pomodoro: "Pomodoro",
+    work: "Travail",
+    break: "Pause",
+    start: "Démarrer",
+    stop: "Arrêter"
   },
   de: {
     manuscript: "Manuskript",
@@ -391,7 +409,13 @@ export const translations = {
     accountDeletedSuccess: "Ihr Inkwell-Konto und alle zugehörigen Daten wurden dauerhaft zerstört.",
     fetchSecurityFailed: "Sicherheitsdaten konnten nicht geladen werden. Netzwerk prüfen...",
     savePasswordFailed: "Passwortprofil konnte nicht gespeichert werden: {error}",
-    accountDeletionFailed: "Kontolöschung fehlgeschlagen: {error}"
+    accountDeletionFailed: "Kontolöschung fehlgeschlagen: {error}",
+    dailyWordGoal: "Tägliches Wortziel",
+    pomodoro: "Pomodoro",
+    work: "Arbeit",
+    break: "Pause",
+    start: "Start",
+    stop: "Stopp"
   },
   nl: {
     manuscript: "Manuscript",
@@ -489,7 +513,13 @@ export const translations = {
     accountDeletedSuccess: "Uw Inkwell-account en alle bijbehorende gegevens zijn permanent vernietigd.",
     fetchSecurityFailed: "Laden van beveiligingsgegevens mislukt. Netwerk controleren...",
     savePasswordFailed: "Kan beveiligingswachtwoord niet opslaan: {error}",
-    accountDeletionFailed: "Accountverwijdering mislukt: {error}"
+    accountDeletionFailed: "Accountverwijdering mislukt: {error}",
+    dailyWordGoal: "Dagelijks Woorddoel",
+    pomodoro: "Pomodoro",
+    work: "Werk",
+    break: "Pauze",
+    start: "Start",
+    stop: "Stop"
   },
   ko: {
     manuscript: "원고",
@@ -587,7 +617,13 @@ export const translations = {
     accountDeletedSuccess: "귀하의 Inkwell 계정과 연관된 모든 데이터가 완전하게 제거되었습니다.",
     fetchSecurityFailed: "보안 자격 정보를 불러오지 못했습니다. 네트워크 상태를 확인하세요...",
     savePasswordFailed: "보안 비밀번호를 저장할 수 없습니다: {error}",
-    accountDeletionFailed: "계정 영구 파기 실패: {error}"
+    accountDeletionFailed: "계정 영구 파기 실패: {error}",
+    dailyWordGoal: "일일 단어수 목표",
+    pomodoro: "뽀모도로",
+    work: "집중",
+    break: "휴식",
+    start: "시작",
+    stop: "중단"
   },
   ja: {
     manuscript: "原稿",
@@ -685,7 +721,13 @@ export const translations = {
     accountDeletedSuccess: "Inkwellアカウントおよび関連付けられたすべてのデータが完全に消去されました。",
     fetchSecurityFailed: "セキュリティ資格情報の取得に失敗しました。接続環境を確認してください...",
     savePasswordFailed: "セキュリティパスワードを保存できませんでした: {error}",
-    accountDeletionFailed: "アカウントの削除に失敗しました: {error}"
+    accountDeletionFailed: "アカウントの削除に失敗しました: {error}",
+    dailyWordGoal: "1日の単語数目標",
+    pomodoro: "ポモドーロ",
+    work: "集中",
+    break: "休憩",
+    start: "開始",
+    stop: "停止"
   }
 };
 

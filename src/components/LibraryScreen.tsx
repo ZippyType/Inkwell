@@ -7,6 +7,7 @@ import { useStudio } from '../context/StudioContext';
 import { db, auth } from '../lib/firebase';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { deleteUser } from 'firebase/auth';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: string, language: LanguageCode) => void }) {
   const { user, language } = useStudio();
@@ -215,7 +216,10 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
       }
 
       alert(t(language, 'accountDeletedSuccess'));
-      window.location.href = window.location.pathname; // refresh to home in clean state
+      
+      // Force complete reload and clear URL params
+      localStorage.clear();
+      window.location.href = '/'; 
     } catch (err: any) {
       console.error(err);
       setVerificationError(t(language, 'accountDeletionFailed', { error: err.message }));
@@ -260,6 +264,12 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
               <div className="flex items-center gap-3 bg-zinc-50 dark:bg-[#121214] border border-zinc-200 dark:border-[#27272a] px-3 py-1.5 rounded-lg text-sm">
                 <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400 font-semibold">{user.email}</span>
                 <button
+                  onClick={() => logout()}
+                  className="text-xs font-semibold text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  {t(language, 'logout')}
+                </button>
+                <button
                   onClick={() => setIsDeletingAccount(true)}
                   className="text-xs font-semibold text-red-500 hover:text-red-400 border border-red-500/10 hover:border-red-500/30 bg-red-500/5 px-2.5 py-1 rounded-md transition-colors"
                 >
@@ -268,6 +278,12 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
               </div>
             ) : (
               <div className="flex items-center gap-3 bg-zinc-50 dark:bg-[#121214] border border-zinc-200 dark:border-[#27272a] px-3 py-1.5 rounded-lg text-xs text-zinc-500">
+                <button
+                    onClick={() => login()}
+                    className="font-semibold text-indigo-500 hover:text-indigo-400 transition-colors"
+                >
+                  {t(language, 'login')}
+                </button>
                 <span>{t(language, 'writingAsGuest')}</span>
                 <button
                   onClick={() => setIsDeletingAccount(true)}
@@ -351,12 +367,26 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
                     <Book className="w-8 h-8 text-zinc-400 dark:text-zinc-600 group-hover:text-indigo-400 transition-colors" />
                     <button 
                       onClick={(e) => deleteProject(project.id, project.name, e)}
-                      className="opacity-0 group-hover:opacity-100 p-2 text-zinc-400 hover:text-red-400 transition-all rounded hover:bg-zinc-200 dark:hover:bg-zinc-800"
+                      className="p-2 text-zinc-400 hover:text-red-400 transition-all rounded hover:bg-zinc-200 dark:hover:bg-zinc-800"
                     >
-                      {t(language, 'delete')}
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                   <h3 className="text-lg font-bold font-serif mb-1 line-clamp-2 text-zinc-900 dark:text-zinc-100">{project.name}</h3>
+                  <div className="mt-2 text-xs text-zinc-500" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="number"
+                      placeholder="Daily Goal"
+                      className="bg-transparent border-b border-zinc-700 w-20 px-1 text-xs"
+                      defaultValue={project.dailyWordCountGoal}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        const updated = projects.map(p => p.id === project.id ? {...p, dailyWordCountGoal: val} : p);
+                        setProjects(updated);
+                        localStorage.setItem('inkwell-projects', JSON.stringify(updated));
+                      }}
+                    />
+                  </div>
                   <div className="mt-auto flex items-center justify-between text-xs text-zinc-500">
                     <div className="flex items-center gap-1.5">
                       <Globe className="w-3.5 h-3.5" />
@@ -368,6 +398,26 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
               ))}
             </div>
           )}
+          
+          <div className="mt-12">
+            <h3 className="text-lg font-semibold mb-6">Word Count Progress</h3>
+            {projects.length > 0 ? (
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={projects.map(p => ({ ...p }))}>
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="dailyWordCountGoal" fill="#6366f1" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-zinc-500 text-sm italic">
+                No projects to visualize yet.
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
