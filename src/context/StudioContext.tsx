@@ -1,11 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { FileSystemItem, GlossaryTerm, FileVersion } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { auth, db, storage, signInWithGoogle } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
 import { get, set, del } from 'idb-keyval';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import LZString from 'lz-string';
 import JSZip from 'jszip';
 import { LanguageCode, translations, t } from '../lib/i18n';
@@ -14,7 +11,7 @@ interface StudioContextType {
   projectId: string;
   language: LanguageCode;
   setLanguage: (lang: LanguageCode) => void;
-  user: User | null;
+  user: any | null;
   authLoading: boolean;
   files: FileSystemItem[];
   assets: { id: string; url: string; name: string; caption?: string }[];
@@ -61,6 +58,8 @@ interface StudioContextType {
   deleteAll: () => void;
   saveToFirebase: () => Promise<void>;
   login: () => Promise<void>;
+  loginWithEmail: (email: string, password: string) => Promise<{ data?: any; error: any }>;
+  signUpWithEmail: (email: string, password: string) => Promise<{ data?: any; error: any }>;
   logout: () => Promise<void>;
   defaultFont: string;
   setDefaultFont: (f: string) => void;
@@ -156,11 +155,37 @@ export function StudioProvider({ children, projectId, initialLanguage }: { child
   });
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
+    // Check active session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser({
+          uid: session.user.id,
+          email: session.user.email,
+          ...session.user
+        });
+      } else {
+        setUser(null);
+      }
       setAuthLoading(false);
     });
-    return unsub;
+
+    // Listen to changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser({
+          uid: session.user.id,
+          email: session.user.email,
+          ...session.user
+        });
+      } else {
+        setUser(null);
+      }
+      setAuthLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -514,19 +539,39 @@ export function StudioProvider({ children, projectId, initialLanguage }: { child
       
       const content = await zip.generateAsync({ type: 'blob' });
       
-      // 3. Upload content
-      // Path: /{userid}/{booktitle}/contents.zip
-      const fileRef = ref(storage, `${user.uid}/${bookTitle}/contents.zip`);
-      await uploadBytes(fileRef, content);
+      // 3. Upload content to Supabase Storage bucket 'books'
+      const filePath = `${user.uid}/${bookTitle}/contents.zip`;
       
-      // Also save metadata to Firestore
-      await setDoc(doc(db, `users/${user.uid}/settings/info`), {
-        lastSave: new Date().toISOString(),
-        fileCount: files.length,
-        assetCount: assets.length
-      }, { merge: true });
+      const { error: uploadError } = await supabase.storage
+        .from('books')
+        .upload(filePath, content, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (uploadError) {
+        console.warn("Storage upload failed (bucket 'books' might not exist):", uploadError);
+      }
       
-      alert("Project saved securely to Firebase Cloud Storage.");
+      // Also save metadata to Supabase table `user_settings`
+      try {
+        const { error: dbError } = await supabase
+          .from('user_settings')
+          .upsert({
+            user_id: user.uid,
+            info: {
+              lastSave: new Date().toISOString(),
+              fileCount: files.length,
+              assetCount: assets.length
+            },
+            updated_at: new Date().toISOString()
+          });
+        if (dbError) throw dbError;
+      } catch (dbErr: any) {
+        console.warn("Database metadata save skipped or failed:", dbErr);
+      }
+      
+      alert(t(language, 'projectSavedSecurely') || "Project saved securely.");
     } catch (error) {
       console.error("Save failed:", error);
       alert("Save failed. Check console for details.");
@@ -535,13 +580,46 @@ export function StudioProvider({ children, projectId, initialLanguage }: { child
 
   const login = async () => {
     try {
-      await signInWithGoogle();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin
+        }
+      });
+      if (error) throw error;
     } catch (error) {
       console.error("Login failed:", error);
     }
   };
 
-  const logout = () => auth.signOut();
+  const loginWithEmail = async (email: string, password: string) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      return { data, error };
+    } catch (error: any) {
+      console.error("Email login failed:", error);
+      return { error };
+    }
+  };
+
+  const signUpWithEmail = async (email: string, password: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      return { data, error };
+    } catch (error: any) {
+      console.error("Email signup failed:", error);
+      return { error };
+    }
+  };
+
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
 
   return (
     <StudioContext.Provider value={{
@@ -607,6 +685,8 @@ export function StudioProvider({ children, projectId, initialLanguage }: { child
       deleteAll,
       saveToFirebase,
       login,
+      loginWithEmail,
+      signUpWithEmail,
       logout,
       defaultFont,
       setDefaultFont

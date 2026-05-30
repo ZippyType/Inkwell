@@ -10,6 +10,7 @@ import {
   Save, 
   PlusCircle, 
   LogOut, 
+  LogIn,
   ChevronDown,
   BookOpen,
   Image as ImageIcon,
@@ -27,6 +28,8 @@ export function TopBar() {
     addPart, 
     addChapter,
     logout, 
+    login,
+    user,
     setShowTutorial, 
     setTutorialStep,
     fontModeActive,
@@ -230,12 +233,21 @@ export function TopBar() {
                   <Trash2 className={`w-3.5 h-3.5 ${isConfirmingDelete ? 'text-white' : 'text-red-500'}`} /> 
                   {isConfirmingDelete ? 'Click again to confirm DELETE ALL' : 'Delete All'}
                 </button>
-                <button 
-                  onClick={() => { logout(); setActiveMenu(null); }}
-                  className="w-full text-left px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white flex items-center gap-2"
-                >
-                  <LogOut className="w-3.5 h-3.5 text-red-400" /> Logout
-                </button>
+                {user ? (
+                  <button 
+                    onClick={() => { logout(); setActiveMenu(null); }}
+                    className="w-full text-left px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white flex items-center gap-2"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-red-400" /> Logout
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => { login(); setActiveMenu(null); }}
+                    className="w-full text-left px-4 py-2 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-zinc-200 dark:bg-zinc-800 hover:text-black dark:hover:text-white flex items-center gap-2"
+                  >
+                    <LogIn className="w-3.5 h-3.5 text-indigo-500 animate-pulse" /> Login with Google
+                  </button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

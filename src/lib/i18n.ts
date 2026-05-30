@@ -103,7 +103,10 @@ export const translations = {
     work: "Work",
     break: "Break",
     start: "Start",
-    stop: "Stop"
+    stop: "Stop",
+    login: "Login",
+    logout: "Logout",
+    projectSavedSecurely: "Project saved securely."
   },
   es: {
     manuscript: "Manuscrito",

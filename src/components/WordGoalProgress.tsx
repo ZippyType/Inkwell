@@ -23,8 +23,7 @@ export function WordGoalProgress({ projectId }: { projectId: string }) {
             confetti({
                 particleCount: 200,
                 spread: 100,
-                origin: { y: 0.6 },
-                duration: 5000,
+                origin: { y: 0.6 }
             });
             triggered.current = true;
             setTimeout(() => { triggered.current = false; }, 7000);

@@ -4,13 +4,11 @@ import { Book, Plus, Settings, Globe, ShieldAlert, KeyRound, Mail, X, Loader2, A
 import { v4 as uuidv4 } from 'uuid';
 import { t, LanguageCode } from '../lib/i18n';
 import { useStudio } from '../context/StudioContext';
-import { db, auth } from '../lib/firebase';
-import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import { deleteUser } from 'firebase/auth';
+import { supabase } from '../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: string, language: LanguageCode) => void }) {
-  const { user, language } = useStudio();
+  const { user, language, login, loginWithEmail, signUpWithEmail, logout } = useStudio();
 
   const [projects, setProjects] = useState<Project[]>(() => {
     const saved = localStorage.getItem('inkwell-projects');
@@ -19,6 +17,14 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
   const [showNew, setShowNew] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newLang, setNewLang] = useState<LanguageCode>('en');
+
+  // Auth modal states
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [authModalError, setAuthModalError] = useState<string | null>(null);
+  const [authModalLoading, setAuthModalLoading] = useState(false);
 
   // Security Verification states (Book Deletion & Account Deletion)
   const [verifyingProjectId, setVerifyingProjectId] = useState<string | null>(null);
@@ -32,7 +38,8 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [passwordSetupMode, setPasswordSetupMode] = useState(false);
   
-  const [verificationLoading, setVerificationLoading] = useState(false);
+  const [checkingSecurity, setCheckingSecurity] = useState(false);
+  const [executingAction, setExecutingAction] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
 
   // Account deletion states
@@ -43,20 +50,39 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
   // Auto load security password whenever modal mounts
   useEffect(() => {
     const loadPassword = async () => {
-      setVerificationLoading(true);
+      setCheckingSecurity(true);
       setVerificationError(null);
       try {
         if (user) {
-          const docRef = doc(db, 'users', user.uid, 'settings', 'security');
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists() && docSnap.data().password) {
-            setExistingPassword(docSnap.data().password);
-            setHasPassword(true);
-            setPasswordSetupMode(false);
-          } else {
-            setHasPassword(false);
-            setExistingPassword('');
-            setPasswordSetupMode(true);
+          try {
+            const { data, error } = await supabase
+              .from('user_security')
+              .select('password')
+              .eq('user_id', user.uid)
+              .maybeSingle();
+
+            if (error) throw error;
+            if (data && data.password) {
+              setExistingPassword(data.password);
+              setHasPassword(true);
+              setPasswordSetupMode(false);
+            } else {
+              setHasPassword(false);
+              setExistingPassword('');
+              setPasswordSetupMode(true);
+            }
+          } catch (dbErr) {
+            console.warn("Could not fetch security profile from Supabase (table may not exist yet), falling back to local storage:", dbErr);
+            const savedPass = localStorage.getItem(`inkwell-security-password-${user.uid}`) || localStorage.getItem('inkwell-security-password');
+            if (savedPass) {
+              setExistingPassword(savedPass);
+              setHasPassword(true);
+              setPasswordSetupMode(false);
+            } else {
+              setHasPassword(false);
+              setExistingPassword('');
+              setPasswordSetupMode(true);
+            }
           }
         } else {
           const savedPass = localStorage.getItem('inkwell-security-password');
@@ -72,9 +98,14 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
         }
       } catch (err: any) {
         console.error("Failed to load security profile:", err);
-        setVerificationError(t(language, 'fetchSecurityFailed'));
+        if (err.message?.includes('offline')) {
+            console.warn("Client is offline, skipping security profile fetch.");
+            // Optionally set a flag that we could not fetch security, but it's offline.
+        } else {
+            setVerificationError(t(language, 'fetchSecurityFailed'));
+        }
       } finally {
-        setVerificationLoading(false);
+        setCheckingSecurity(false);
       }
     };
 
@@ -98,13 +129,25 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
       return;
     }
 
-    setVerificationLoading(true);
+    setExecutingAction(true);
     setVerificationError(null);
 
     try {
       if (user) {
-        const docRef = doc(db, 'users', user.uid, 'settings', 'security');
-        await setDoc(docRef, { password: passwordInput }, { merge: true });
+        try {
+          const { error } = await supabase
+            .from('user_security')
+            .upsert({
+              user_id: user.uid,
+              password: passwordInput,
+              updated_at: new Date().toISOString()
+            });
+          if (error) throw error;
+        } catch (dbErr) {
+          console.warn("Could not save password to Supabase database, falling back to local storage:", dbErr);
+          localStorage.setItem(`inkwell-security-password-${user.uid}`, passwordInput);
+          localStorage.setItem('inkwell-security-password', passwordInput);
+        }
       } else {
         localStorage.setItem('inkwell-security-password', passwordInput);
       }
@@ -118,7 +161,7 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
       console.error(err);
       setVerificationError(t(language, 'savePasswordFailed', { error: err.message }));
     } finally {
-      setVerificationLoading(false);
+      setExecutingAction(false);
     }
   };
 
@@ -132,7 +175,7 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
       return;
     }
 
-    setVerificationLoading(true);
+    setExecutingAction(true);
     setVerificationError(null);
 
     try {
@@ -154,7 +197,7 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
     } catch (error: any) {
       setVerificationError(error.message);
     } finally {
-      setVerificationLoading(false);
+      setExecutingAction(false);
     }
   };
 
@@ -177,7 +220,7 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
       return;
     }
 
-    setVerificationLoading(true);
+    setExecutingAction(true);
     setVerificationError(null);
 
     try {
@@ -197,21 +240,29 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
       localStorage.removeItem('inkwell-oobe-seen');
       localStorage.removeItem('inkwell-tutorial-seen');
 
-      // 2. Erase Firestore workspace documents if authenticated
+      // 2. Erase Supabase database workspace records if authenticated
       if (user) {
-        const securityRef = doc(db, 'users', user.uid, 'settings', 'security');
-        await deleteDoc(securityRef);
-        const infoRef = doc(db, 'users', user.uid, 'settings', 'info');
-        await deleteDoc(infoRef);
+        try {
+          await supabase
+            .from('user_security')
+            .delete()
+            .eq('user_id', user.uid);
+            
+          await supabase
+            .from('user_settings')
+            .delete()
+            .eq('user_id', user.uid);
+        } catch (dbErr) {
+          console.warn("Failed to delete user rows in Supabase (table may not exist):", dbErr);
+        }
       }
 
-      // 3. Delete Firebase Authenticated Account if possible
-      if (user && auth.currentUser) {
+      // 3. Sign out of Supabase
+      if (user) {
         try {
-          await deleteUser(auth.currentUser);
+          await supabase.auth.signOut();
         } catch (authErr) {
-          console.warn("Auth user delete skipped (or requires re-authentication). Signing out instead.", authErr);
-          await auth.signOut();
+          console.warn("Auth signout skipped or failed.", authErr);
         }
       }
 
@@ -224,7 +275,48 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
       console.error(err);
       setVerificationError(t(language, 'accountDeletionFailed', { error: err.message }));
     } finally {
-      setVerificationLoading(false);
+      setExecutingAction(false);
+    }
+  };
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authEmail.trim() || !authPassword.trim()) {
+      setAuthModalError("Please fill in both email and password.");
+      return;
+    }
+    
+    setAuthModalLoading(true);
+    setAuthModalError(null);
+    
+    try {
+      if (isSignUp) {
+        const { data, error } = await signUpWithEmail(authEmail.trim(), authPassword);
+        if (error) throw error;
+        
+        // If sign up succeeded, check if session is modern or email verification is required
+        if (data?.user && !data.session) {
+          alert("Account signup initiated! If your project has email confirmation enabled (default in Supabase), please check your email for a verification link.");
+          setShowAuthModal(false);
+        } else {
+          setShowAuthModal(false);
+        }
+      } else {
+        const { error } = await loginWithEmail(authEmail.trim(), authPassword);
+        if (error) {
+          // Check for a specific error from Supabase to provide actionable advice
+          if (error.message && error.message.includes("Email logins are not enabled")) {
+            throw new Error("Email Authentication is disabled in your Supabase project settings. Please turn it on in the Supabase Dashboard under Authentication -> Providers.");
+          }
+          throw error;
+        }
+        setShowAuthModal(false);
+      }
+    } catch (err: any) {
+      console.error("Auth helper failed:", err);
+      setAuthModalError(err.message || "An authentication error occurred.");
+    } finally {
+      setAuthModalLoading(false);
     }
   };
 
@@ -270,7 +362,10 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
                   {t(language, 'logout')}
                 </button>
                 <button
-                  onClick={() => setIsDeletingAccount(true)}
+                  onClick={() => {
+                    setExecutingAction(false);
+                    setIsDeletingAccount(true);
+                  }}
                   className="text-xs font-semibold text-red-500 hover:text-red-400 border border-red-500/10 hover:border-red-500/30 bg-red-500/5 px-2.5 py-1 rounded-md transition-colors"
                 >
                   {t(language, 'deleteAccount')}
@@ -279,7 +374,7 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
             ) : (
               <div className="flex items-center gap-3 bg-zinc-50 dark:bg-[#121214] border border-zinc-200 dark:border-[#27272a] px-3 py-1.5 rounded-lg text-xs text-zinc-500">
                 <button
-                    onClick={() => login()}
+                    onClick={() => { setShowAuthModal(true); setAuthModalError(null); }}
                     className="font-semibold text-indigo-500 hover:text-indigo-400 transition-colors"
                 >
                   {t(language, 'login')}
@@ -445,7 +540,7 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
                   setIsDeletingAccount(false);
                   setVerificationError(null);
                 }}
-                disabled={verificationLoading}
+                disabled={checkingSecurity || executingAction}
                 className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -512,10 +607,10 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
                     <button
                       type="button"
                       onClick={saveNewPassword}
-                      disabled={verificationLoading || passwordInput.length < 4}
+                      disabled={executingAction || passwordInput.length < 4}
                       className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-400 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
                     >
-                      {verificationLoading ? (
+                      {executingAction ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
                         t(language, 'setSecurityPassword')
@@ -556,10 +651,10 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
                     <button
                       type="button"
                       onClick={confirmBookDeletion}
-                      disabled={verificationLoading || !passwordInput.trim()}
+                      disabled={executingAction || !passwordInput.trim()}
                       className="flex-1 py-2 bg-red-600 hover:bg-red-500 disabled:bg-zinc-400 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
                     >
-                      {verificationLoading ? (
+                      {executingAction ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           {t(language, 'erasing')}
@@ -655,10 +750,10 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
                     <button
                       type="button"
                       onClick={handleAccountDeletion}
-                      disabled={verificationLoading || !emailInput.trim() || !passwordInput.trim() || !doubleConfirmChecked || confirmText.toLowerCase() !== "delete"}
+                      disabled={executingAction || !emailInput.trim() || !passwordInput.trim() || !doubleConfirmChecked || confirmText.toLowerCase() !== "delete"}
                       className="flex-1 py-2 bg-red-600 hover:bg-red-500 disabled:bg-zinc-400 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
                     >
-                      {verificationLoading ? (
+                      {executingAction ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           {t(language, 'purgingData')}
@@ -670,6 +765,133 @@ export function LibraryScreen({ onSelectProject }: { onSelectProject: (id: strin
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAuthModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#121214] border border-zinc-200 dark:border-[#27272a] rounded-xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-6 border-b border-zinc-200 dark:border-[#27272a] flex justify-between items-center bg-zinc-50 dark:bg-[#18181b]">
+              <div className="flex items-center gap-2">
+                <Book className="w-5 h-5 text-indigo-500" />
+                <h2 className="text-lg font-bold font-serif text-zinc-900 dark:text-white">Inkwell Cloud Sync</h2>
+              </div>
+              <button 
+                onClick={() => setShowAuthModal(false)}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {authModalError && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 p-3 rounded-lg text-xs space-y-1">
+                  <div className="font-semibold flex items-center gap-1.5 text-left">
+                    <ShieldAlert className="w-4 h-4 shrink-0" />
+                    <span>Authentication Error</span>
+                  </div>
+                  <p className="opacity-90 text-left">{authModalError}</p>
+                </div>
+              )}
+
+              {/* Login with Google Option */}
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setAuthModalLoading(true);
+                    setAuthModalError(null);
+                    try {
+                      await login();
+                    } catch (err: any) {
+                      setAuthModalError(err.message || "Failed to launch Google auth.");
+                    } finally {
+                      setAuthModalLoading(false);
+                    }
+                  }}
+                  disabled={authModalLoading}
+                  className="w-full py-2.5 px-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-950 rounded-lg hover:bg-zinc-800 dark:hover:bg-zinc-100 font-semibold text-xs flex items-center justify-center gap-2.5 transition-all shadow-md cursor-pointer disabled:opacity-55"
+                >
+                  {authModalLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <svg className="w-4 h-4" viewBox="0 0 24 24">
+                      <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.22-.66-.35-1.36-.35-2.09z"/>
+                      <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                    </svg>
+                  )}
+                  <span>Continue with Google</span>
+                </button>
+                <p className="text-[10px] text-zinc-500 leading-normal text-left bg-zinc-50 dark:bg-zinc-900/50 p-2.5 rounded border border-zinc-100 dark:border-zinc-800">
+                  ⚠️ <strong>Note:</strong> Google Sign In requires you to enable Google Auth under <strong>Authentication &rsaquo; Providers</strong> in your Supabase dashboard workspace.
+                </p>
+              </div>
+
+              {/* Elegant Divider */}
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-zinc-200 dark:border-[#27272a]"></div>
+                <span className="flex-shrink mx-4 text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-mono">or</span>
+                <div className="flex-grow border-t border-zinc-200 dark:border-[#27272a]"></div>
+              </div>
+
+              {/* Email Form */}
+              <form onSubmit={handleEmailAuth} className="space-y-4 text-left">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block">Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="you@example.com"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    className="w-full bg-zinc-50 dark:bg-[#18181b] border border-zinc-200 dark:border-[#27272a] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 text-zinc-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest block">Password</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    className="w-full bg-zinc-50 dark:bg-[#18181b] border border-zinc-200 dark:border-[#27272a] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 text-zinc-900 dark:text-white"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={authModalLoading}
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer disabled:opacity-55"
+                >
+                  {authModalLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : isSignUp ? (
+                    'Create Sync Account'
+                  ) : (
+                    'Log In with Password'
+                  )}
+                </button>
+
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSignUp(!isSignUp);
+                      setAuthModalError(null);
+                    }}
+                    className="text-[11px] text-indigo-500 hover:text-indigo-400 font-semibold transition-colors focus:outline-none"
+                  >
+                    {isSignUp ? "Already have an account? Log In" : "Need a synchronized backup? Create an Account"}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

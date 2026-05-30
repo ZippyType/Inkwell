@@ -1,8 +1,8 @@
 
 import { jsPDF } from 'jspdf';
-import { Project, File } from '../types';
+import { Project, FileSystemItem } from '../types';
 
-export const exportToPDF = (project: Project, files: File[]) => {
+export const exportToPDF = (project: Project, files: FileSystemItem[]) => {
   const doc = new jsPDF();
   
   // Title
